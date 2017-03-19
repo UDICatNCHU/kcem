@@ -1,14 +1,3 @@
-# auto Created when execute gen_kcm.py
-.idea/
-.term_pair_freq*
-ChineseWikiRawData
-
-
-# Project stuff
-entrance/settings_database.py
-uwsgi.deploy.ini
-db.sqlite3
-
 # virtualenv
 venv
 
@@ -84,4 +73,8 @@ coverage.xml
 docs/_build/
 
 # PyBuilder
+<<<<<<< HEAD
 target/
+=======
+target/
+>>>>>>> b30d664b427e1f822105be5248b1ccdf5d1596e6
