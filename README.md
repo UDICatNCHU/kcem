@@ -1,4 +1,4 @@
-# KCEM
+# kcem
 
 KCEM的class檔，可以透過 `pip` 直接安裝
 
@@ -22,7 +22,7 @@ These instructions will get you a copy of the project up and running on your loc
 
 ## Run
 
-1. `settings.py`裏面需要新增`slothTw`這個app：
+1. `settings.py`裏面需要新增`kcem`這個app：
 
   - add this:
 
@@ -31,30 +31,23 @@ These instructions will get you a copy of the project up and running on your loc
     ...
     ...
     ...
-    'slothTw',
+    'kcem',
     ]
     ```
 
-2. `urls.py`需要新增下列代碼 把所有search開頭的request都導向到`slothTw`這個app：
+2. `urls.py`需要新增下列代碼 把所有search開頭的request都導向到`kcem`這個app：
 
   - add this:
 
     ```
-    import slothTw.urls
+    import kcem.urls
     urlpatterns += [
-        url(r'^sloth/',include(slothTw.urls,namespace="slothTw") ),
+        url(r'^kcem/', include(kcem.urls))
     ]
     ```
     ## Usage
 
-      ```
-      from kcem import KCEM
-
-      k = KCEM()
-      k.get(keyword, lang, num, kem_topn_num, kcm_topn_num)
-      ```
-
-3. `python manage.py runserver`：即可進入頁面測試 `slothTw` 是否安裝成功。
+3. `python manage.py runserver`：即可進入頁面 `127.0.0.1:8000/kcem` 測試 `kcem` 是否安裝成功。
 
 ### Break down into end to end tests
 
