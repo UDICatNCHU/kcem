@@ -4,7 +4,6 @@ setup(
     name = 'kcem',
     packages = ['kcem'],
     version = '1.1',
-    version = '1.0',
     description = 'kcem class file',
     author = 'davidtnfsh',
     author_email = 'davidtnfsh@gmail.com',
