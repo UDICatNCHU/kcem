@@ -45,7 +45,6 @@ These instructions will get you a copy of the project up and running on your loc
         url(r'^kcem/', include(kcem.urls))
     ]
     ```
-    ## Usage
 
 3. `python manage.py runserver`：即可進入頁面 `127.0.0.1:8000/kcem` 測試 `kcem` 是否安裝成功。
 
