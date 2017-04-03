@@ -2,3 +2,9 @@
 setup.cfg
 setup.py
 kcem/__init__.py
+kcem/admin.py
+kcem/apps.py
+kcem/models.py
+kcem/tests.py
+kcem/urls.py
+kcem/views.py
