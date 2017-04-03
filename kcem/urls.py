@@ -15,7 +15,7 @@ Including another URLconf
 """
 from django.conf.urls import url
 from django.contrib import admin
-from KCEM import views
+from kcem import views
 
 urlpatterns = [
     url(r'^$', views.kcem, name='kcem'), 

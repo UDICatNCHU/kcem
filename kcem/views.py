@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from django.http import JsonResponse
 from djangoApiDec.djangoApiDec import queryString_required
-from KCEM import KCEM
+from kcem import KCEM
 from udic_nlp_API.settings_database import uri
 from django.shortcuts import render
 
