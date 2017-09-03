@@ -1,8 +1,8 @@
-import seq2seq
-from seq2seq.models import SimpleSeq2Seq
+# import seq2seq
+# from seq2seq.models import SimpleSeq2Seq
 
-model = SimpleSeq2Seq(batch_input_shape=(1, 150, 400), hidden_dim=1, output_length=150, output_dim=400, depth=4)
-model.compile(loss='mse', optimizer='rmsprop', metrics=['accuracy'])
+# model = SimpleSeq2Seq(batch_input_shape=(1, 150, 400), hidden_dim=1, output_length=2, output_dim=1, depth=4)
+# model.compile(loss='mse', optimizer='rmsprop', metrics=['accuracy'])
 
 import json, numpy
 from sklearn.model_selection import train_test_split
@@ -15,7 +15,20 @@ x_test = numpy.array(x_test)
 y_train = numpy.array(y_train)
 y_test = numpy.array(y_test)
 
-history = model.fit(x_train, y_train,
-          batch_size=1, epochs=5, shuffle=False,
-          validation_data=(x_test, y_test))
+# history = model.fit(x_train, y_train,
+#           batch_size=1, epochs=5, shuffle=False,
+#           validation_data=(x_test, y_test))
+
+from keras.models import Sequential
+from keras.layers import Dense, LSTM
+
+model = Sequential()
+model.add(LSTM(50, input_shape=(150, 400)))
+model.add(Dense(2, activation='relu'))
+model.compile(loss='binary_crossentropy',
+              optimizer='rmsprop',
+              metrics=['accuracy'])
+
+history = model.fit(x_train, y_train, batch_size=16, epochs=5)
+score = model.evaluate(x_test, y_test, batch_size=16)
 print(history.history)
