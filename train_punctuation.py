@@ -80,6 +80,7 @@ def cli():
 @click.option('--epoch', default=100, help='number of epoch to train model')
 @click.option('-m', '--model_path', default=os.path.join(MODEL_PATH), help='model files to save')
 def train(epoch, model_path):
+    from keras import backend as K
     x_train, x_test, y_train, y_test, dimension = build_data()
     model = build_model(200)
     model.fit(x_train, y_train, validation_data=(x_test, y_test), batch_size=128, nb_epoch=epoch)
@@ -92,12 +93,15 @@ def train(epoch, model_path):
     for (start, end), sentence in zip(pred, testData):
         sentenceCut = [i.word for i in pseg.lcut(sentence['raw'])]
         print(''.join(sentenceCut[int(round(start*len(sentenceCut))):int(round(end*len(sentenceCut)))]))
+    K.clear_session()
 
 
 @cli.command()
 @click.option('-m', '--model_path', default=os.path.join(MODEL_PATH), help='model files to read')
 @click.argument('sentence')
 def test(model_path, sentence):
+    from keras import backend as K
+
     struct_file = os.path.join(model_path, MODEL_STRUCT_FILE)
     weights_file = os.path.join(model_path, MODEL_WEIGHTS_FILE)
     model = build_model_from_file(struct_file, weights_file)
@@ -111,8 +115,7 @@ def test(model_path, sentence):
 
     newsentence = [i.word for i in newsentence]
     print(''.join(newsentence[int(round(pred[0]*len(newsentence))):int(round(pred[1]*len(newsentence)))]))
+    K.clear_session()
 
 if __name__ == '__main__':
-    from keras import backend as K
     cli()
-    K.clear_session()
