@@ -1,3 +1,9 @@
+dictionary
+seq2seq.json
+seq2seq_weights_start.h5
+stopwords.json
+ttt.json
+
 # virtualenv
 venv
 
