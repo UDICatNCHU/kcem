@@ -10,7 +10,7 @@ from keras.layers.embeddings import Embedding
 from keras.layers.recurrent import GRU
 from keras.layers.wrappers import TimeDistributed
 from keras.models import Sequential, model_from_json
-from keras.layers.core import Dense, RepeatVector
+from keras.layers.core import Dense, RepeatVector, Dropout, Flatten
 from keras.preprocessing import sequence
 from keras.preprocessing.text import Tokenizer
 from itertools import chain
@@ -35,7 +35,7 @@ class KCEM_trainer(object):
 
 
 
-    def build_data(self):
+    def build_data(self, max_length):
         print('=======build data========')
         self.dimension = max(self.token.word_index.values(), key=lambda x:x)
         print('max dimension is ' + str(self.dimension))
@@ -43,11 +43,11 @@ class KCEM_trainer(object):
         x_train_seq = self.token.texts_to_sequences(map(lambda x:' '.join(x['key']), self.trainData))
         x_test_seq = self.token.texts_to_sequences(map(lambda x:' '.join(x['key']), self.testData))
 
-        x_train = sequence.pad_sequences(x_train_seq, maxlen=125, padding='post', truncating='post')
-        x_test = sequence.pad_sequences(x_test_seq, maxlen=125, padding='post', truncating='post')
+        x_train = sequence.pad_sequences(x_train_seq, maxlen=max_length, padding='post', truncating='post')
+        x_test = sequence.pad_sequences(x_test_seq, maxlen=max_length, padding='post', truncating='post')
 
-        y_train = np.array([ (i['start']/len(i['key']), i['end']/len(i['key'])) for i in self.trainData])
-        y_test = np.array([ (i['start']/len(i['key']), i['end']/len(i['key'])) for i in self.testData])
+        y_train = np.array([ (i['start_normalize'], i['end_normalize']) for i in self.trainData])
+        y_test = np.array([ (i['start_normalize'], i['end_normalize']) for i in self.testData])
         return x_train, x_test, y_train, y_test
 
     def build_model_from_file(self, struct_file, weights_file):
@@ -57,14 +57,18 @@ class KCEM_trainer(object):
         return model
 
 
-    def build_model(self, hidden_size):
+    def build_model(self, hidden_size, max_length):
         """建立一个 sequence to sequence 模型"""
         model = Sequential()
-        model.add(Embedding(output_dim=hidden_size, input_dim=self.dimension+1, input_length=125))
+        model.add(Embedding(output_dim=hidden_size, input_dim=self.dimension+1, input_length=max_length))
         model.add(GRU(output_dim=hidden_size, return_sequences=True))
-        model.add(GRU(output_dim=hidden_size, return_sequences=False))
+        model.add(GRU(output_dim=hidden_size, return_sequences=True))
+        model.add(TimeDistributed(Dense(hidden_size)))
+        model.add(Flatten())
         model.add(Dense(hidden_size, activation=self.activation))
+        model.add(Dropout(0.5))
         model.add(Dense(hidden_size, activation=self.activation))
+        model.add(Dropout(0.5))
         model.add(Dense(2, activation=self.activation))
         model.compile(loss=self.loss, optimizer=self.optimizer,
                   metrics=['accuracy'])
@@ -78,10 +82,11 @@ class KCEM_trainer(object):
         # save model weights
         model.save_weights(weights_file, overwrite=True)
 
-    def train(self):
+    def train(self, max_length):
         from keras import backend as K
-        x_train, x_test, y_train, y_test = self.build_data()
-        model = self.build_model(200)
+        x_train, x_test, y_train, y_test = self.build_data(max_length)
+        model = self.build_model(200, max_length)
+        print(model.summary())
         self.train_history = model.fit(x_train, y_train, validation_data=(x_test, y_test), batch_size=128, nb_epoch=self.epoch)
         struct_file = os.path.join('./', self.MODEL_STRUCT_FILE)
         weights_file = os.path.join('./', self.MODEL_WEIGHTS_FILE)
@@ -94,7 +99,7 @@ class KCEM_trainer(object):
             print(''.join(sentenceCut[int(round(start*len(sentenceCut))):int(round(end*len(sentenceCut)))]), end="\n\n")
         K.clear_session()
 
-    def test(sentence):
+    def test(sentence, max_length):
         from keras import backend as K
 
         struct_file = os.path.join('./', self.MODEL_STRUCT_FILE)
@@ -104,7 +109,7 @@ class KCEM_trainer(object):
         newsentence = pseg.lcut(sentence)
         sentenceCut = [' '.join([i.flag for i in newsentence])]
         test = self.token.texts_to_sequences(sentenceCut)
-        test = sequence.pad_sequences(test, maxlen=125, padding='post', truncating='post')
+        test = sequence.pad_sequences(test, maxlen=max_length, padding='post', truncating='post')
         pred = model.predict(test)[0]
         print(round(pred[0]*len(sentenceCut[0])))
 
@@ -117,7 +122,7 @@ class KCEM_trainer(object):
         plt.plot(self.train_history.history[train_acc])
         plt.plot(self.train_history.history[test_acc])
         plt.title('Train History')
-        plt.ylabel('Accuracy')
+        plt.ylabel('Loss')
         plt.xlabel('Epoch')
         plt.legend(['train', 'test'], loc='upper left')
         plt.show()
@@ -129,16 +134,17 @@ if __name__ == '__main__':
         pass
 
     @cli.command()
-    @click.argument('sentence')
-    def test():
+    @click.option('--maxlen', help='number of epoch to train model')
+    @click.option('--sentence', help='number of epoch to train model')
+    def test(maxlen, sentence):
         k = KCEM_trainer(loss='mse', optimizer='adam', activation='sigmoid')
 
     @cli.command()
     @click.option('--epoch', default=100, help='number of epoch to train model')
-    def train(epoch):
-        print(epoch)
+    @click.option('--maxlen', default=100, help='number of epoch to train model')
+    def train(epoch, maxlen):
         k = KCEM_trainer(loss='mse', optimizer='adam', activation='sigmoid', epoch=epoch)
-        k.train()
+        k.train(int(maxlen))
         k.show_train_history('loss','val_loss')
 
     cli()
