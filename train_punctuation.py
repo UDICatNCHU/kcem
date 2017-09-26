@@ -114,7 +114,6 @@ class KCEM_trainer(object):
 
         newsentence = [i.word for i in newsentence]
         ans = ''.join(newsentence[int(round(pred[0]*len(newsentence))):int(round(pred[1]*len(newsentence)))])
-        print(ans)
         K.clear_session()
         return ans
 
@@ -139,7 +138,7 @@ if __name__ == '__main__':
     @click.option('--sentence', help='number of epoch to train model')
     def test(maxlen, sentence):
         k = KCEM_trainer(loss='mse', optimizer='adam', activation='sigmoid', epoch=None)
-        k.test(int(maxlen), sentence)
+        print(k.test(int(maxlen), sentence))
 
     @cli.command()
     @click.option('--epoch', default=100, help='number of epoch to train model')
