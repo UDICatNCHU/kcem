@@ -99,7 +99,7 @@ class KCEM_trainer(object):
             print(''.join(sentenceCut[int(round(start*len(sentenceCut))):int(round(end*len(sentenceCut)))]), end="\n\n")
         K.clear_session()
 
-    def test(sentence, max_length):
+    def test(self, max_length, sentence):
         from keras import backend as K
 
         struct_file = os.path.join('./', self.MODEL_STRUCT_FILE)
@@ -111,11 +111,12 @@ class KCEM_trainer(object):
         test = self.token.texts_to_sequences(sentenceCut)
         test = sequence.pad_sequences(test, maxlen=max_length, padding='post', truncating='post')
         pred = model.predict(test)[0]
-        print(round(pred[0]*len(sentenceCut[0])))
 
         newsentence = [i.word for i in newsentence]
-        print(''.join(newsentence[int(round(pred[0]*len(newsentence))):int(round(pred[1]*len(newsentence)))]))
+        ans = ''.join(newsentence[int(round(pred[0]*len(newsentence))):int(round(pred[1]*len(newsentence)))])
+        print(ans)
         K.clear_session()
+        return ans
 
     def show_train_history(self, train_acc,test_acc):
         import matplotlib.pyplot as plt
@@ -137,7 +138,8 @@ if __name__ == '__main__':
     @click.option('--maxlen', help='number of epoch to train model')
     @click.option('--sentence', help='number of epoch to train model')
     def test(maxlen, sentence):
-        k = KCEM_trainer(loss='mse', optimizer='adam', activation='sigmoid')
+        k = KCEM_trainer(loss='mse', optimizer='adam', activation='sigmoid', epoch=None)
+        k.test(int(maxlen), sentence)
 
     @cli.command()
     @click.option('--epoch', default=100, help='number of epoch to train model')
