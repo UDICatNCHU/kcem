@@ -1,7 +1,6 @@
 import os, re, click, json, pickle, random
 import jieba.posseg as pseg
 import jieba
-stopwords = json.load(open('stopwords.json', 'r'))
 jieba.load_userdict(os.path.join('dictionary', 'dict.txt.big.txt'))
 jieba.load_userdict(os.path.join("dictionary", "NameDict_Ch_v2"))
 
@@ -17,9 +16,10 @@ from itertools import chain
 
 class KCEM_trainer(object):
     """docstring for KCEM_trainer"""
-    MODEL_STRUCT_FILE = 'seq2seq.json'
-    MODEL_WEIGHTS_FILE = 'seq2seq_weights_start.h5'
-    def __init__(self, loss, optimizer, activation, epoch):
+    def __init__(self, loss, optimizer, activation, epoch, useDefault=True):
+        self.struct_file = 'seq2seq.json'
+        self.weights_file = 'seq2seq_weights.h5'
+
         self.loss = loss
         self.optimizer = optimizer
         self.activation = activation
@@ -33,6 +33,8 @@ class KCEM_trainer(object):
         random.shuffle(Data)
         self.trainData, self.testData = Data[:int(len(Data)*0.7)], Data[int(len(Data)*0.7):]
 
+        if useDefault:
+            self.model = self.build_model_from_file(self.struct_file, self.weights_file)
 
 
     def build_data(self, max_length):
@@ -88,9 +90,7 @@ class KCEM_trainer(object):
         model = self.build_model(200, max_length)
         print(model.summary())
         self.train_history = model.fit(x_train, y_train, validation_data=(x_test, y_test), batch_size=128, nb_epoch=self.epoch)
-        struct_file = os.path.join('./', self.MODEL_STRUCT_FILE)
-        weights_file = os.path.join('./', self.MODEL_WEIGHTS_FILE)
-        self.save_model_to_file(model, struct_file, weights_file)
+        self.save_model_to_file(model, self.struct_file, self.weights_file)
 
         pred = model.predict(x_test)
 
@@ -101,16 +101,11 @@ class KCEM_trainer(object):
 
     def test(self, max_length, sentence):
         from keras import backend as K
-
-        struct_file = os.path.join('./', self.MODEL_STRUCT_FILE)
-        weights_file = os.path.join('./', self.MODEL_WEIGHTS_FILE)
-        model = self.build_model_from_file(struct_file, weights_file)
-
         newsentence = pseg.lcut(sentence)
         sentenceCut = [' '.join([i.flag for i in newsentence])]
         test = self.token.texts_to_sequences(sentenceCut)
         test = sequence.pad_sequences(test, maxlen=max_length, padding='post', truncating='post')
-        pred = model.predict(test)[0]
+        pred = self.model.predict(test)[0]
 
         newsentence = [i.word for i in newsentence]
         ans = ''.join(newsentence[int(round(pred[0]*len(newsentence))):int(round(pred[1]*len(newsentence)))])
@@ -144,7 +139,7 @@ if __name__ == '__main__':
     @click.option('--epoch', default=100, help='number of epoch to train model')
     @click.option('--maxlen', default=100, help='number of epoch to train model')
     def train(epoch, maxlen):
-        k = KCEM_trainer(loss='mse', optimizer='adam', activation='sigmoid', epoch=epoch)
+        k = KCEM_trainer(useDefault=False, loss='mse', optimizer='adam', activation='sigmoid', epoch=epoch)
         k.train(int(maxlen))
         k.show_train_history('loss','val_loss')
 

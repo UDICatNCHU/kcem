@@ -20,7 +20,7 @@ def preprocess_article(article):
     return {vocab:ans}
 rdd = sc.parallelize(data)
 del data
-result = rdd.map(preprocess_article).collect()
+result = rdd.map(preprocess_article).glom().collect()
 json.dump(result, open('wiki.keras.json'))
     # result = []
     # for article in data:
