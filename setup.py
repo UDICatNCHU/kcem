@@ -16,6 +16,11 @@ setup(
         'pymongo',
         'simplejson',
         'requests',
+        'keras',
+        'click',
+        'jieba',
+        'tensorflow',
+        'h5py'
     ],
     zip_safe=True
 )
