@@ -19,7 +19,7 @@ class KCEM_trainer(object):
     """docstring for KCEM_trainer"""
     MODEL_STRUCT_FILE = 'seq2seq.json'
     MODEL_WEIGHTS_FILE = 'seq2seq_weights_start.h5'
-    def __init__(self, loss, optimizer, activation, epoch):
+    def __init__(self, loss, optimizer, activation, epoch, file=''):
         self.loss = loss
         self.optimizer = optimizer
         self.activation = activation
@@ -27,7 +27,7 @@ class KCEM_trainer(object):
 
         self.history = ''
 
-        Data = json.load(open('ttt.json','r'))
+        Data = json.load(open(file,'r'))
         self.token = Tokenizer(num_words=2000)
         self.token.fit_on_texts(map(lambda x:' '.join(x['key']), Data))
         random.shuffle(Data)
@@ -142,9 +142,10 @@ if __name__ == '__main__':
 
     @cli.command()
     @click.option('--epoch', default=100, help='number of epoch to train model')
-    @click.option('--maxlen', default=100, help='number of epoch to train model')
-    def train(epoch, maxlen):
-        k = KCEM_trainer(loss='mse', optimizer='adam', activation='sigmoid', epoch=epoch)
+    @click.option('--maxlen', default=100, help='number of max len of input sequence')
+    @click.option('--file', help='training data')
+    def train(epoch, maxlen, file):
+        k = KCEM_trainer(loss='mse', optimizer='adam', activation='sigmoid', epoch=epoch, file=file)
         k.train(int(maxlen))
         k.show_train_history('loss','val_loss')
 
