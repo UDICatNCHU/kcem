@@ -118,6 +118,7 @@ class KCEM_trainer(object):
         return ans
 
     def show_train_history(self, train_acc,test_acc):
+        json.dump(train_history.history, open('train_history.json','w'))
         import matplotlib.pyplot as plt
         plt.plot(self.train_history.history[train_acc])
         plt.plot(self.train_history.history[test_acc])
