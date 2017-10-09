@@ -7,15 +7,43 @@ kemNum = sys.argv[2]
 loss = 0
 total = 0
 
+def criteria(mode, myans):
+	if mode == 'w2v':
+		myans = [i for i in myans if i[0] != key]
+		myans = list(map(cosSimilarity, myans[:3]))
+		myans = [i for i in myans if i != None]
+		myans = sorted(myans, key=lambda x:-x[1])
+		return myans[0][0]
+	elif mode == 'kcem':
+		return myans[0][0]
+	elif mode == 'hybrid':
+		result = {}
+		myans = [i for i in myans if i[0] != key]
+		w2v = list(map(cosSimilarity, myans[:3]))
+		result = {i[0]:float(i[1]) for i in w2v if i != None}
+		for i in myans[:3]:
+			result[i[0]] = result.setdefault(i[0], 0) + i[1]
+		myans = sorted(result.items(), key=lambda x:-x[1])
+		return myans[0][0]
+
+
+
 for key, ans in pyprind.prog_bar(json.load(open('Ontology_from_google.json', 'r')).items()):
 	myans = requests.get('http://140.120.13.244:10000/kcem/?keyword={}&kcm={}&kem={}&lang=cht'.format(key, kcmNum, kemNum)).json()
-	print(myans)
+
+	def cosSimilarity(x):
+		global key
+		try:
+			return (x[0], model.similarity(key, x[0]))
+		except Exception as e:
+			pass
 	if myans:
-		myans = myans[0][0]
+		myans = criteria(sys.argv[3], myans)
 		try:
 			total += 1
-			loss += (1 - model.similarity(myans, ans))
+			loss += (float(model.similarity(myans, ans))*10)**2
 		except Exception as e:
+			print(e)
 			continue
 
 print("finish {} test, total loss is {}".format(total, loss / total))
