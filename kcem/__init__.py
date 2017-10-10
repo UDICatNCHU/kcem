@@ -28,7 +28,7 @@ class KCEM(object):
 					result[word[0]] = result.setdefault(word[0], 0) + 1.0/float(kem_topn_num)
 
 			result = sorted(result.items(), key = lambda x: -x[1])
-			self.Collect.update({'key':keyword}, {'key':keyword, str(kcm_topn_num)+str(kem_topn_num):result}, upsert=True)
+			self.Collect.update({'key':keyword}, {"$set":{str(kcm_topn_num)+str(kem_topn_num):result}}, upsert=True)
 			return result[:num]
 			
 		return dict(list(result)[0])[str(kcm_topn_num)+str(kem_topn_num)][:num]
