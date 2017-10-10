@@ -12,13 +12,13 @@ class KCEM(object):
 		Returns:
 			if contains invalid queryString key, it will raise exception.
 		"""
-		result = self.Collect.find({'key':keyword, str(kcm_topn_num)+str(kem_topn_num):{'$exists':True}}, {str(kcm_topn_num)+str(kem_topn_num):1, '_id':False}).limit(1)
+		result = self.Collect.find({'key':keyword, '{}-{}'.format(kcm_topn_num, kem_topn_num):{'$exists':True}}, {'{}-{}'.format(kcm_topn_num, kem_topn_num):1, '_id':False}).limit(1)
 		if result.count()==0:
 			kcm_lists = list()
 
-			for kemtopn in json.loads(requests.get('http://api.udic.cs.nchu.edu.tw/api/kem/?keyword={}&lang={}&num={}'.format(keyword, lang, kem_topn_num)).text):
+			for kemtopn in json.loads(requests.get('http://140.120.13.244:10000/kem/?keyword={}&lang={}&num={}'.format(keyword, lang, kem_topn_num)).text):
 				kcm_lists.append( list( kcmtopn 
-					for kcmtopn in json.loads(requests.get('http://api.udic.cs.nchu.edu.tw/api/kcm/?keyword={}&lang={}&num={}'.format(kemtopn[0], lang, kcm_topn_num)).text )
+					for kcmtopn in json.loads(requests.get('http://140.120.13.244:10000/kcm/?keyword={}&lang={}&num={}'.format(kemtopn[0], lang, kcm_topn_num)).text )
 					) 
 				)
 
@@ -28,7 +28,12 @@ class KCEM(object):
 					result[word[0]] = result.setdefault(word[0], 0) + 1.0/float(kem_topn_num)
 
 			result = sorted(result.items(), key = lambda x: -x[1])
-			self.Collect.update({'key':keyword}, {"$set":{str(kcm_topn_num)+str(kem_topn_num):result}}, upsert=True)
+			self.Collect.update({'key':keyword}, {"$set":{'{}-{}'.format(kcm_topn_num, kem_topn_num):result}}, upsert=True)
 			return result[:num]
 			
-		return dict(list(result)[0])[str(kcm_topn_num)+str(kem_topn_num)][:num]
+		return dict(list(result)[0])['{}-{}'.format(kcm_topn_num, kem_topn_num)][:num]
+
+if __name__ == '__main__':
+	import sys
+	k = KCEM('mongodb://172.17.0.6:27017')
+	print(k.get(sys.argv[1], 'cht', num=10, kem_topn_num=sys.argv[2], kcm_topn_num=sys.argv[3]))
