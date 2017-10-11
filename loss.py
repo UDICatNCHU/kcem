@@ -50,8 +50,8 @@ if __name__ == '__main__':
 	data = json.load(open('Ontology_from_google.json', 'r')).items()
 	file = {}
 
-	for kcmNum in range(2, 30):
-		for kemNum in range(2, 30):
+	for kcmNum in range(2, 30, 2):
+		for kemNum in range(2, 30, 2):
 			loss, total = main(kcmNum, kemNum)
 			print("finish {} test, total loss is {}".format(total, loss / total))
 			file['{}-{}'.format(kcmNum, kemNum)] = loss / total
