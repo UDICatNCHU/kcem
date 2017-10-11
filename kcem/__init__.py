@@ -28,7 +28,7 @@ class KCEM(object):
 					result[word[0]] = result.setdefault(word[0], 0) + 1.0/float(kem_topn_num)
 
 			result = sorted(result.items(), key = lambda x: -x[1])
-			self.Collect.update({'key':keyword}, {"$set":{'{}-{}'.format(kcm_topn_num, kem_topn_num):result}}, upsert=True)
+			self.Collect.update({'key':keyword}, {"$set":{'{}-{}'.format(kcm_topn_num, kem_topn_num):result[:10]}}, upsert=True)
 			return result[:num]
 			
 		return dict(list(result)[0])['{}-{}'.format(kcm_topn_num, kem_topn_num)][:num]
