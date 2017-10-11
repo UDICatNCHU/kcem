@@ -1,9 +1,6 @@
 import requests, pyprind, json, sys
 from gensim import models
 
-model = models.KeyedVectors.load_word2vec_format('med400.model.bin', binary=True)
-data = json.load(open('Ontology_from_google.json', 'r')).items()
-file = {}
 
 def criteria(mode, myans, key):
 	def cosSimilarity(x):
@@ -49,9 +46,12 @@ def main(kcmNum, kemNum):
 	return loss, total
 
 if __name__ == '__main__':
+	model = models.KeyedVectors.load_word2vec_format('med400.model.bin', binary=True)
+	data = json.load(open('Ontology_from_google.json', 'r')).items()
+	file = {}
 
-	for kcmNum in range(2, 3):
-		for kemNum in range(1, 3):
+	for kcmNum in range(2, 30):
+		for kemNum in range(2, 30):
 			loss, total = main(kcmNum, kemNum)
 			print("finish {} test, total loss is {}".format(total, loss / total))
 			file['{}-{}'.format(kcmNum, kemNum)] = loss / total
