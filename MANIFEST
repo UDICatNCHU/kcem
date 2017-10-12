@@ -7,4 +7,5 @@ kcem/apps.py
 kcem/models.py
 kcem/tests.py
 kcem/urls.py
+kcem/utils.py
 kcem/views.py

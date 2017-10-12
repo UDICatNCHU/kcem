@@ -35,7 +35,6 @@ def main(kcmNum, kemNum):
 		myans = requests.get('http://140.120.13.244:10000/kcem/?keyword={}&kcm={}&kem={}&lang=cht'.format(key, kcmNum, kemNum)).json()
 
 		if myans:
-			print(myans)
 			myans = criteria(sys.argv[1], myans, key)
 			try:
 				total += 1
