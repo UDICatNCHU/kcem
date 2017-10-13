@@ -88,18 +88,24 @@ kcem有兩個參數，kcm取幾個、kem取幾個，本實驗使用[google的知
 1. 舊的kcem跟取第一段維基百科去斷詞，而且不是紀錄頻率而是用set儲存所做出來的kcem效果的比較
 * kh:kcem hybrid
 * kn:kcem new method
-![我的kcem_compare_kcem.png](我的kcem_compare_kcem.png)
-2. kcem_hybrid的loss:
+![我的kcem_compare_kcem.png](picture/我的kcem_compare_kcem.png)
+2. hybrid的loss V.S. kcem的loss:
 * 數字：代表kcm的參數，用不同顏色表示
-![hybridVSkcem.png](hybridVSkcem.png)
-3. new kcem的loss:
+![hybridVSkcem.png](picture/hybridVSkcem.png)
+3. hybrid 的loss V.S. new method的loss:
 * 數字：代表kcm的參數，用不同顏色表示
-![kcem.new.method.png](kcem.new.method.png)
+![hybridVSnew.png](picture/hybridVSnew.png)
 4. 四種版本的kcem比較:
-![4個趨勢.png](4個趨勢.png)
+同一種方法但是不同kcm、kem參數的loss都畫成同一顏色的線
+![4個趨勢.png](picture/4個趨勢.png)
 5. 四種全部都取平均:
-![4個平均.png](4個平均.png)
+同一種方法但是不同kcm、kem參數的loss都取平均,畫成同一顏色的線
+![4個平均.png](picture/4個平均.png)
 
 ### 10/13小結論：
 
-將用hybrid的min：kcm:22 kem:12 loss:21.458033917027294 這組參數當作目前最佳的is-a去做後續應用
+`new method`因為只取第1段的表現比較不穩定，所以採用hybrid方法
+
+new method相關的實驗程 式放在[new_kcem_method](new_kcem_method)
+
+將用hybrid的min：`kcm:22 kem:12 loss:21.458033917027294` 這組參數當作目前最佳的`is-a`去做後續應用
