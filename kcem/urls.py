@@ -19,4 +19,5 @@ from kcem import views
 
 urlpatterns = [
     url(r'^$', views.kcem, name='kcem'), 
+    url(r'^kcem_new$', views.kcem_new, name='kcem_new'), 
 ]

@@ -13,9 +13,9 @@ def criteria(mode, myans, key):
 		myans = list(map(cosSimilarity, myans[:3]))
 		myans = [i for i in myans if i != None]
 		myans = sorted(myans, key=lambda x:-x[1])
-		return myans
+		return myans[0][0]
 	elif mode == 'kcem':
-		return myans
+		return myans[0][0]
 	elif mode == 'hybrid':
 		result = {}
 		myans = [i for i in myans if i[0] != key]
@@ -24,4 +24,4 @@ def criteria(mode, myans, key):
 		for i in myans[:3]:
 			result[i[0]] = result.setdefault(i[0], 0) + i[1]
 		myans = sorted(result.items(), key=lambda x:-x[1])
-		return myans
+		return myans[0][0]
