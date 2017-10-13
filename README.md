@@ -75,3 +75,31 @@ These instructions will get you a copy of the project up and running on your loc
 ## License
 
 This package use `GPL3.0` License.
+
+# KCEM experiments
+
+kcem有兩個參數，kcm取幾個、kem取幾個，本實驗使用[google的知識圖譜](https://github.com/UDICatNCHU/Open-Sentiment-Training-Data/blob/master/Ontology_from_google.json)約500筆做測試
+
+為了畫成二維的圖，把kcm的參數表示成顏色、loss為y軸、kem數量為x軸
+
+參數的範圍從2~30 `range(2, 30, 2)`
+
+
+1. 舊的kcem跟取第一段維基百科去斷詞，而且不是紀錄頻率而是用set儲存所做出來的kcem效果的比較
+* kh:kcem hybrid
+* kn:kcem new method
+![我的kcem_compare_kcem.png](我的kcem_compare_kcem.png)
+2. kcem_hybrid的loss:
+* 數字：代表kcm的參數，用不同顏色表示
+![hybridVSkcem.png](kcem_hybrid_loss.png)
+3. new kcem的loss:
+* 數字：代表kcm的參數，用不同顏色表示
+![kcem.new.method.png](我的kcem_loss.png)
+4. 四種版本的kcem比較:
+![4個趨勢.png](四種方法的比較1.png)
+5. 四種全部都取平均:
+![4個平均.png](平均的圖.png)
+
+### 10/13小結論：
+
+將用hybrid的min：kcm:22 kem:12 loss:21.458033917027294 這組參數當作目前最佳的is-a去做後續應用

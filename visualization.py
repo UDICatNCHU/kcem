@@ -29,9 +29,9 @@ def function(mode, color, label='', Mission='separate'):
 		plt.plot(range(2, 30, 2), zeros, color = color, label=label)
 
 
-function('kcemLoss/kcem.loss.hybrid.json', 'b', 'hybrid', sys.argv[1])
+# function('kcemLoss/kcem.loss.hybrid.json', 'b', 'hybrid', sys.argv[1])
 function('kcemLoss/kcem.loss.kcem.json', 'r', 'kcem', sys.argv[1])
-function('kcemLoss/kcem.loss.w2v.json', 'y', 'w2v', sys.argv[1])
+# function('kcemLoss/kcem.loss.w2v.json', 'y', 'w2v', sys.argv[1])
 function('kcemLoss/kcem.new.method.json', 'g', 'new method', sys.argv[1])
 plt.title('Train History')
 plt.ylabel('Loss')
