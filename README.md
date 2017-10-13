@@ -91,14 +91,14 @@ kcem有兩個參數，kcm取幾個、kem取幾個，本實驗使用[google的知
 ![我的kcem_compare_kcem.png](我的kcem_compare_kcem.png)
 2. kcem_hybrid的loss:
 * 數字：代表kcm的參數，用不同顏色表示
-![hybridVSkcem.png](kcem_hybrid_loss.png)
+![hybridVSkcem.png](hybridVSkcem.png)
 3. new kcem的loss:
 * 數字：代表kcm的參數，用不同顏色表示
-![kcem.new.method.png](我的kcem_loss.png)
+![kcem.new.method.png](kcem.new.method.png)
 4. 四種版本的kcem比較:
-![4個趨勢.png](四種方法的比較1.png)
+![4個趨勢.png](4個趨勢.png)
 5. 四種全部都取平均:
-![4個平均.png](平均的圖.png)
+![4個平均.png](4個平均.png)
 
 ### 10/13小結論：
 
