@@ -4,7 +4,7 @@ from djangoApiDec.djangoApiDec import queryString_required
 from kcem import KCEM
 from udic_nlp_API.settings_database import uri
 from django.shortcuts import render
-from kcem.utils import criteria
+from kcem.utils.utils import criteria
 
 # Create your views here.
 @queryString_required(['lang', 'keyword', 'kcm', 'kem'])
