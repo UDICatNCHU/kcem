@@ -35,5 +35,5 @@ def kcem_new(request):
     k = KCEM(uri)
     kcemAns = k.get(keyword, 'cht', num = 10, kem_topn_num=kem, kcm_topn_num=kcm)
 
-    result = criteria('hybrid', kcemAns, keyword)
+    result = criteria('hybrid', kcemAns, keyword)[:int(request.GET['num']) if 'num' in request.GET else 10]
     return JsonResponse(result, safe=False)
