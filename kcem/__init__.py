@@ -1,13 +1,16 @@
+from kcem.utils.utils import criteria
+import json, requests
+from pymongo import MongoClient
+
 class KCEM(object):
 	"""docstring for KCEM"""
 	def __init__(self, uri=None):
-		from pymongo import MongoClient
 		self.client = MongoClient(uri)
 		self.db = self.client['nlp']
 		self.Collect = self.db['kcem']
+		self.kcem_new_collect = self.db['kcem_new']
 
 	def get(self, keyword, lang, num, kem_topn_num, kcm_topn_num):
-		import json, requests
 		"""Generate list of term data source files
 		Returns:
 			if contains invalid queryString key, it will raise exception.
@@ -32,6 +35,21 @@ class KCEM(object):
 			return result[:num]
 			
 		return dict(list(result)[0])['{}-{}'.format(kcm_topn_num, kem_topn_num)][:num]
+
+	def get_kcem_new(self, keyword, num):
+		# 22, 12是目前實驗出最佳的參數組合
+		kcm = 22
+		kem = 12
+
+		result = self.kcem_new_collect.find({'key':keyword}, {'value':1, '_id':False}).limit(1)
+		if result.count() == 0:
+			kcemAns = self.get(keyword, 'cht', num = 10, kem_topn_num=kem, kcm_topn_num=kcm)
+			result = criteria('hybrid', kcemAns, keyword)
+			self.kcem_new_collect.update({'key':keyword}, {'$set':{'value':result}}, upsert=True)
+			return result[:num]
+
+		return dict(list(result)[0])['value'][:num]
+
 
 if __name__ == '__main__':
 	import sys

@@ -10,7 +10,7 @@ def criteria(mode, myans, key):
 
 	if mode == 'w2v':
 		myans = [i for i in myans if i[0] != key]
-		myans = list(map(cosSimilarity, myans[:3]))
+		myans = list(map(cosSimilarity, myans[:5]))
 		myans = [i for i in myans if i != None]
 		myans = sorted(myans, key=lambda x:-x[1])
 		return myans
@@ -19,9 +19,9 @@ def criteria(mode, myans, key):
 	elif mode == 'hybrid':
 		result = {}
 		myans = [i for i in myans if i[0] != key]
-		w2v = list(map(cosSimilarity, myans[:3]))
+		w2v = list(map(cosSimilarity, myans[:5]))
 		result = {i[0]:float(i[1]) for i in w2v if i != None}
-		for i in myans[:3]:
+		for i in myans[:5]:
 			result[i[0]] = result.setdefault(i[0], 0) + i[1]
 		myans = sorted(result.items(), key=lambda x:-x[1])
 		return myans
