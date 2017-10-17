@@ -1,6 +1,9 @@
 from kcem.utils.utils import criteria
 import json, requests
 from pymongo import MongoClient
+from kcmApp.views import kcm as kcmRequest
+from kem.views import kem as kemRequest
+from django.http import HttpRequest
 
 class KCEM(object):
 	"""docstring for KCEM"""
@@ -19,9 +22,17 @@ class KCEM(object):
 		if result.count()==0:
 			kcm_lists = list()
 
-			for kemtopn in json.loads(requests.get('http://140.120.13.244:10000/kem/?keyword={}&lang={}&num={}'.format(keyword, lang, kem_topn_num)).text):
+			httpReq = HttpRequest()
+			httpReq.method = 'GET'
+			httpReq.GET['lang'] = 'cht'
+			httpReq.GET['keyword'] = keyword
+			httpReq.GET['num'] = kem_topn_num
+			for kemtopn in json.loads(kemRequest(httpReq).getvalue().decode('utf-8')):
+
+				httpReq.GET['num'] = kcm_topn_num
+				httpReq.GET['keyword'] = kemtopn[0]				
 				kcm_lists.append( list( kcmtopn 
-					for kcmtopn in json.loads(requests.get('http://140.120.13.244:10000/kcm/?keyword={}&lang={}&num={}'.format(kemtopn[0], lang, kcm_topn_num)).text )
+					for kcmtopn in json.loads(kcmRequest(httpReq).getvalue().decode('utf-8'))
 					) 
 				)
 
