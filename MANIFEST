@@ -9,6 +9,5 @@ kcem/tests.py
 kcem/urls.py
 kcem/views.py
 kcem/utils/__init__.py
-kcem/utils/loss.py
 kcem/utils/utils.py
 kcem/utils/visualization.py
