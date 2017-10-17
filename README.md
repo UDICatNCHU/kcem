@@ -50,11 +50,15 @@ These instructions will get you a copy of the project up and running on your loc
 
 ### Break down into end to end tests
 
-目前還沒寫測試...
+```
+usage: manage.py loss [--kcemMode KCEMMODE] [--ans ANS] [--output OUTPUT]
+                      [--upperbound UPPERBOUND]
+```
 
-### And coding style tests
-
-目前沒有coding style tests...
+* kcemMode:mode of kcem, you can choose one from `hybrid, w2v or kcem`.
+* ans:a json file, which we crawled from Google's Ontology.
+* output:output file of kcem loss.
+* upperbound:Upper bound of kcm and kem parameters, need to be integer.
 
 ## Deployment
 

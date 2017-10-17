@@ -7,7 +7,7 @@ from django.http import HttpRequest
 from kcem.views import kcem as kcemRequest
 
 class Command(BaseCommand):
-    help = 'use this for build model of KEM!'
+    help = 'use this to test kcem!'
     
     def add_arguments(self, parser):
         # Positional arguments
@@ -73,7 +73,6 @@ class Command(BaseCommand):
                 file['{}-{}'.format(kcmNum, kemNum)] = loss / total
 
         show = sorted(file.items(), key=lambda x:x[1])
-        print(show)
         print('min loss is {}, kcm-kem is : {}'.format(show[0][1], show[0][0]))
         json.dump(file, open(options['output'],'w'))
 
