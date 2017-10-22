@@ -1,6 +1,6 @@
 # author: Shane Yu  date: April 8, 2017
 from django.core.management.base import BaseCommand, CommandError
-import pyprind, json, multiprocessing, pymongo, logging, threading
+import pyprind, json, multiprocessing, pymongo, logging, threading, math
 from gensim import models
 from utils import criteria
 from django.http import HttpRequest
@@ -16,14 +16,16 @@ class Command(BaseCommand):
                 return True
             else:
                 return False
+        # 目前實驗起來最好的組合
         kcm = 22
         kem = 12
         httpReq = HttpRequest()
         httpReq.method = 'GET'
         httpReq.GET['lang'] = 'cht'
         keywordList = sorted([i for i in self.model.vocab.keys() if len(i) >2 and is_chinese(i)], key=lambda x:len(x), reverse=True)
-        keywordPieces = [keywordList[i:i + int(len(keywordList)/multiprocessing.cpu_count())+1] for i in range(0, len(keywordList), int(len(keywordList)/multiprocessing.cpu_count())+1)]
-        print('build keywordPieces')
+        step = math.ceil(len(keywordList)/multiprocessing.cpu_count())
+        keywordPieces = [keywordList[i:i + step] for i in range(0, len(keywordList), step)]
+        logging.info('build keywordPieces')
         logging.basicConfig(format='%(levelname)s : %(asctime)s : %(message)s', filename='buildKCEM.log', level=logging.INFO)
         self.Collect.remove({})
 
@@ -53,17 +55,16 @@ class Command(BaseCommand):
 
             self.Collect.insert(ThreadResult)
 
-        print('create thread')
+        logging.info('create thread')
         workers = [threading.Thread(target=activateKCEM, kwargs={'keywordThreadList':keywordPieces[i]}, name=str(i)) for i in range(multiprocessing.cpu_count())]
 
-        print('start thread')
+        logging.info('start thread')
         for thread in workers:
            thread.start()
 
         # Wait for all threads to complete
         for thread in workers:
             thread.join()
-        print('finish all threads')
         self.Collect.create_index([("key", pymongo.HASHED)])
 
     def handle(self, *args, **options):
