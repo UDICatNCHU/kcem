@@ -15,4 +15,4 @@ def kcem(request):
     """
     keyword = request.GET['keyword']
     k = KCEM(uri)
-    return JsonResponse(k.get(keyword, lang, num = int(request.GET['num']) if 'num' in request.GET else 10, kem_topn_num=kem, kcm_topn_num=kcm), safe=False)
+    return JsonResponse(k.get(keyword, num = int(request.GET['num']) if 'num' in request.GET else 10), safe=False)

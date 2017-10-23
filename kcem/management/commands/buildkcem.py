@@ -22,7 +22,7 @@ class Command(BaseCommand):
         httpReq = HttpRequest()
         httpReq.method = 'GET'
         httpReq.GET['lang'] = 'cht'
-        keywordList = sorted([i for i in self.model.vocab.keys() if len(i) >2 and is_chinese(i)], key=lambda x:len(x), reverse=True)
+        keywordList = list(self.model.vocab.keys())
         step = math.ceil(len(keywordList)/multiprocessing.cpu_count())
         keywordPieces = [keywordList[i:i + step] for i in range(0, len(keywordList), step)]
         logging.info('build keywordPieces')
