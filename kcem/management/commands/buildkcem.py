@@ -2,7 +2,7 @@
 from django.core.management.base import BaseCommand, CommandError
 import pyprind, json, multiprocessing, pymongo, logging, threading, math
 from gensim import models
-from utils import criteria
+from kcem.utils.utils import criteria
 from django.http import HttpRequest
 from kcmApp.views import kcm as kcmRequest
 from udic_nlp_API.settings_database import uri
@@ -25,8 +25,8 @@ class Command(BaseCommand):
         keywordList = list(self.model.vocab.keys())
         step = math.ceil(len(keywordList)/multiprocessing.cpu_count())
         keywordPieces = [keywordList[i:i + step] for i in range(0, len(keywordList), step)]
-        logging.info('build keywordPieces')
         logging.basicConfig(format='%(levelname)s : %(asctime)s : %(message)s', filename='buildKCEM.log', level=logging.INFO)
+        logging.info('build keywordPieces')
         self.Collect.remove({})
 
         def activateKCEM(keywordThreadList):
