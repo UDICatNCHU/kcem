@@ -1,9 +1,4 @@
-from kcem.utils.utils import criteria
-import json, requests
 from pymongo import MongoClient
-from kcmApp.views import kcm as kcmRequest
-from kem.views import kem as kemRequest
-from django.http import HttpRequest
 
 class KCEM(object):
 	"""docstring for KCEM"""

@@ -1,6 +1,6 @@
 # author: Shane Yu  date: April 8, 2017
 from django.core.management.base import BaseCommand, CommandError
-import pyprind, json, multiprocessing, pymongo, logging, threading, math
+import json, multiprocessing, pymongo, logging, threading, math
 from gensim import models
 from kcem.utils.utils import criteria
 from django.http import HttpRequest
