@@ -14,7 +14,7 @@ class KCEM(object):
 		"""
 		result = self.Collect.find({'key':keyword}, {'value':1, '_id':False}).limit(1)
 		if result.count()==0:
-			[]
+			return []
 		return dict(list(result)[0])['value'][:num]
 
 

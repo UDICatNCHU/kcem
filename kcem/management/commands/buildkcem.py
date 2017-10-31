@@ -11,11 +11,6 @@ class Command(BaseCommand):
     help = 'use this to test kcem!'
     
     def export2Mongo(self):
-        def is_chinese(uchar):         
-            if '\u4e00' <= uchar<='\u9fff':
-                return True
-            else:
-                return False
         # 目前實驗起來最好的組合
         kcm = 22
         kem = 12
@@ -50,7 +45,7 @@ class Command(BaseCommand):
 
                 result = sorted(result.items(), key = lambda x: -x[1])
                 ThreadResult.append({'key':keyword, 'value':criteria('hybrid', result[:10], keyword)})
-                if index % 100 == 0:
+                if index % 10000 == 0:
                     logging.info("已處理 %d 個單子" % index)
 
             self.Collect.insert(ThreadResult)
