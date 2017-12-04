@@ -19,7 +19,7 @@ class WikiKCEM(object):
     @staticmethod
     def findPath(keyword):
         Collect = pymongo.MongoClient(None)['nlp']['wikiReverse']
-        cursor = list(Collect.find({'key':keyword}).limit(1))[0]
+        cursor = Collect.find({'key':keyword}).limit(1)[0]
         if 'ParentOfLeafNode' in cursor:
             cursor = cursor['ParentOfLeafNode']
         else:
@@ -31,7 +31,7 @@ class WikiKCEM(object):
             (keyword, path) = queue.pop()
             cursor = Collect.find({'key':keyword}).limit(1)
             if cursor.count():
-                parentNodes = list(cursor)[0]
+                parentNodes = cursor[0]
                 parentNodes = parentNodes['parentNode']
                 for parent in parentNodes:
                     if parent in path:
@@ -49,8 +49,7 @@ class WikiKCEM(object):
             keyword = self.wikiNgram.find(keyword)
             cursor = self.reverseCollect.find({'key':keyword}, {'_id':False}).limit(1)
 
-        cursor = list(cursor)[0]
-        cursor = cursor.get('ParentOfLeafNode', []) + cursor.get('parentNode', [])
+        cursor = cursor[0].get('ParentOfLeafNode', []) + cursor[0].get('parentNode', [])
         candidate = {}
         for parent in cursor:
             if keyword not in parent:

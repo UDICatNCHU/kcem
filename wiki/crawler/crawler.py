@@ -197,8 +197,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
     wiki = WikiCrawler()
     if args.crawl:
-        wiki.crawl('中式麵條')
-        # wiki.crawl('頁面分類')
+        wiki.crawl('頁面分類')
+        # wiki.crawl('中式麵條')
         # wiki.crawl('各国动画师')
         # wiki.crawl('中央大学校友')
         # wiki.crawl('日本動畫師')
@@ -210,5 +210,5 @@ if __name__ == '__main__':
         # wiki.crawl('萌擬人化')
         wiki.mergeMongo()
     elif args.fix:
-        # wiki.checkMissing()
+        wiki.checkMissing()
         wiki.mergeMongo()
