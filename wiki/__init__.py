@@ -85,6 +85,7 @@ if __name__ == '__main__':
     if args.k:
         while True:
             keyword = input('\nplease input the keyword you want to query:\n')
+            keyword = keyword.encode('utf-8').decode('utf-8', errors='ignore')
             print(list(wiki.findParent(keyword)))
         # 新海誠
         # print(list(wiki.findPath(args.k)))
