@@ -54,39 +54,55 @@ class WikiCrawler(object):
 
         res = requests.get(self.genUrl(parent)).text
         res = BeautifulSoup(res, 'lxml')
-        # node
-        for candidateOffsprings in res.select('.CategoryTreeLabelCategory'):
-            tradText = candidateOffsprings.text
-            
-            # build dictionary
-            result[parent].setdefault('node', []).append(tradText)
+        def node():
+            # node
+            nonlocal result
+            for candidateOffsprings in res.select('.CategoryTreeLabelCategory'):
+                tradText = candidateOffsprings.text
+                
+                # build dictionary
+                result[parent].setdefault('node', []).append(tradText)
 
-            # if it's a node hasn't been through
-            # append these res to stack
-            if tradText not in self.visited and True not in {i in tradText for i in ('維基人', '维基人', '總類模板', '维基百科', '維基百科')}:
-                self.stack.append(tradText)
+                # if it's a node hasn't been through
+                # append these res to stack
+                if tradText not in self.visited and True not in {i in tradText for i in ('維基人', '维基人', '總類模板', '维基百科', '維基百科')}:
+                    self.stack.append(tradText)
 
-        # leafNode (要注意wiki的leafNode有下一頁的連結，都要traverse完)
-        leafNodeList = [res.select('#mw-pages a')]
-        while leafNodeList:
-            current = leafNodeList.pop(0)
+        def leafNode():
+            nonlocal result
+            # leafNode (要注意wiki的leafNode有下一頁的連結，都要traverse完)
+            leafNodeList = [res.select('#mw-pages a')]
+            while leafNodeList:
+                current = leafNodeList.pop(0)
 
-            # notyet 變數的意思是，因為wiki會有兩個下一頁的超連結
-            # 頂部跟底部
-            # 所以如果把頂部的bs4結果append到leafNodeLIst的話
-            # 底部就不用重複加
-            notyet = True
-            for child in current:
-                tradChild = child.text
-                if notyet and tradChild in ('下一頁', '下一页') and child.has_attr('href'):
-                    notyet = False
-                    leafNodeList.append(BeautifulSoup(requests.get(self.wikiBaseUrl + child['href']).text, 'lxml').select('#mw-pages a'))
-                else:
-                    if tradChild not in ['下一頁', '上一頁', '下一页', '上一页']:
-                        result[parent].setdefault('leafNode', []).append(tradChild)
+                # notyet 變數的意思是，因為wiki會有兩個下一頁的超連結
+                # 頂部跟底部
+                # 所以如果把頂部的bs4結果append到leafNodeLIst的話
+                # 底部就不用重複加
+                notyet = True
+                for child in current:
+                    tradChild = child.text
+                    if notyet and tradChild in ('下一頁', '下一页') and child.has_attr('href'):
+                        notyet = False
+                        leafNodeList.append(BeautifulSoup(requests.get(self.wikiBaseUrl + child['href']).text, 'lxml').select('#mw-pages a'))
+                    else:
+                        if tradChild not in ['下一頁', '上一頁', '下一页', '上一页']:
+                            result[parent].setdefault('leafNode', []).append(tradChild)
+            # insert
+            result = [dict({'key':key}, **value) for key, value in result.items()]
 
-        # insert
-        result = [dict({'key':key}, **value) for key, value in result.items()]
+        def grandParent():
+            nonlocal result
+            # GrandParent Node
+            # 每個頁面的最底下都會說他們parent category是什麼
+            # 也把它爬其來避免爬蟲有時候因為網路錯誤而漏掉
+            for grandParent in res.select('#mw-normal-catlinks li a'):
+                result.append({'key':grandParent.text, 'node':[parent]}) 
+
+        node()
+        leafNode()
+        grandParent()
+
         if result:
             # [BUG] pymongo.errors.DocumentTooLarge: BSON document too large (39247368 bytes) - the connected server supports BSON document sizes up to 16777216 bytes.
             # use Mongo GridFS instead !!!
@@ -134,8 +150,6 @@ class WikiCrawler(object):
             # 把以前沒爬到的都放進stack中之後就起動thread去爬吧
             self.thread_init()
 
-
-
     def mergeMongo(self):
         logging.info("start merge")
 
@@ -178,15 +192,16 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, description='''
         build kcm model and insert it into mongoDB with command line.    
     ''')
-    parser.add_argument('-craw', metavar='mode of crawler', help='mode of crawler', type=bool)
+    parser.add_argument('-crawl', metavar='mode of crawler', help='mode of crawler', type=bool)
     parser.add_argument('-fix', metavar='fix missing node', help='fix missing node', type=bool)
     args = parser.parse_args()
     wiki = WikiCrawler()
-    if args.craw:
+    if args.crawl:
+        wiki.crawl('中式麵條')
         # wiki.crawl('頁面分類')
         # wiki.crawl('各国动画师')
         # wiki.crawl('中央大学校友')
-        wiki.crawl('日本動畫師')
+        # wiki.crawl('日本動畫師')
         # wiki.crawl('媒體')
         # wiki.crawl('日本電視動畫')
         # wiki.crawl('喜欢名侦探柯南的维基人')
