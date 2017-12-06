@@ -39,7 +39,6 @@ class WikiCrawler(object):
         for thread in workers:
            thread.start()
         # Wait for all threads to complete
-        logging.info('wait for join')
         for thread in workers:
             thread.join()
         logging.info('finish init')
@@ -49,7 +48,6 @@ class WikiCrawler(object):
         return 'https://zh.wikipedia.org/zh-tw/Category:' + category
 
     def dfs(self, parent):
-        logging.info('now is at {}'.format(parent))
         result = defaultdict(dict)
 
         res = requests.get(self.genUrl(parent)).text
@@ -98,6 +96,8 @@ class WikiCrawler(object):
             # 也把它爬其來避免爬蟲有時候因為網路錯誤而漏掉
             for grandParent in res.select('#mw-normal-catlinks li a'):
                 result.append({'key':grandParent.text, 'node':[parent]}) 
+            if not res.select('#mw-normal-catlinks li a'):
+                logging.error("no grand parent: {}".format(self.genUrl(parent)))
 
         node()
         leafNode()
@@ -107,7 +107,10 @@ class WikiCrawler(object):
             # [BUG] pymongo.errors.DocumentTooLarge: BSON document too large (39247368 bytes) - the connected server supports BSON document sizes up to 16777216 bytes.
             # use Mongo GridFS instead !!!
             self.Collect.insert(result)
+        else:
+            logging.error("no result: {}".format(self.genUrl(parent)))
         self.visited.add(parent)
+        logging.info('now is at {} url:{} result:{}'.format(parent, self.genUrl(parent), result))
 
     def thread_dfs(self):
         while True:
@@ -151,8 +154,6 @@ class WikiCrawler(object):
             self.thread_init()
 
     def mergeMongo(self):
-        logging.info("start merge")
-
         # merge Collect
         result = defaultdict(dict)
         for term in self.Collect.find({}, {'_id':False}):
@@ -198,6 +199,7 @@ if __name__ == '__main__':
     wiki = WikiCrawler()
     if args.crawl:
         wiki.crawl('頁面分類')
+        # wiki.crawl('文学')
         # wiki.crawl('中式麵條')
         # wiki.crawl('各国动画师')
         # wiki.crawl('中央大学校友')

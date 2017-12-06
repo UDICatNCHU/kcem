@@ -47,7 +47,11 @@ class WikiKCEM(object):
         cursor = self.reverseCollect.find({'key':keyword}, {'_id':False}).limit(1)
         if not cursor.count():
             keyword = self.wikiNgram.find(keyword)
-            cursor = self.reverseCollect.find({'key':keyword}, {'_id':False}).limit(1)
+            if keyword:
+                cursor = self.reverseCollect.find({'key':keyword}, {'_id':False}).limit(1)
+            else:
+                return []
+
 
         cursor = cursor[0].get('ParentOfLeafNode', []) + cursor[0].get('parentNode', [])
         candidate = {}
