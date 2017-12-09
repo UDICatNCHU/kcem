@@ -175,7 +175,6 @@ class WikiCrawler(object):
                         if not self.Collect.find({'key':node}).limit(1).count():
                             self.stack.append(node)
 
-
             if not self.stack:
                 # 經過再三檢查，確定沒有漏掉的node沒有繼續dfs進去後，就可以結束了
                 break
@@ -197,8 +196,8 @@ class WikiCrawler(object):
                     result.add(parent)
 
         self.stack.extend(result)
-        subprocess.cal(['rm', self.logName])
-
+        # emtpy log file
+        open(self.logName, 'w').close()
 
     def mergeMongo(self):
         # merge Collect
@@ -249,18 +248,19 @@ if __name__ == '__main__':
     args = parser.parse_args()
     wiki = WikiCrawler()
     if args.crawl:
-        wiki.crawl('特色級時間條目')
+        # wiki.crawl('特色級時間條目')
         # wiki.crawl('頁面分類')
         # wiki.crawl('中式麵條')
         # wiki.crawl('各国动画师')
         # wiki.crawl('中央大学校友')
         # wiki.crawl('日本動畫師')
         # wiki.crawl('媒體')
-        # wiki.crawl('日本電視動畫')
+        wiki.crawl('日本電視動畫')
         # wiki.crawl('喜欢名侦探柯南的维基人')
         # wiki.crawl('日本原創電視動畫')
         # wiki.crawl('富士電視台動畫')
         # wiki.crawl('萌擬人化')
+        wiki.checkMissing()
         wiki.mergeMongo()
     elif args.fix:
         wiki.checkMissing()
