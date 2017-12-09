@@ -3,7 +3,7 @@ from distutils.core import setup
 setup(
     name = 'kcem',
     packages = ['kcem'],
-    package_data={'kcem':['utils/*']},
+    package_data={'kcem':['utils/*', 'wiki/*', 'wiki/crawler/*']},
     version = '3.1',
     description = 'kcem class file',
     author = 'davidtnfsh',

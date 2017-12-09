@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import requests, os.path, threading, multiprocessing, pymongo, logging, sys, subprocess
+import requests, os.path, threading, multiprocessing, pymongo, logging, sys, subprocess, json_lines, os
 from bs4 import BeautifulSoup
 from collections import defaultdict
 from opencc import OpenCC
@@ -22,21 +22,22 @@ class WikiCrawler(object):
         self.Collect = self.client['wiki']
         self.reverseCollect = self.client['wikiReverse']
         self.queueLock = threading.Lock()
-        self.visited, self.stack = set(), []
+        self.visited, self.stack, self.urlStack = set(), [], []
             
     def crawl(self, root):
+        self.stack.append(root)
         # 為了避免stack一開始就太空導致沒有工作做，先把stack塞多點工作
-        self.dfs(root)
-        self.dfs(self.stack.pop(0))
-        self.dfs(self.stack.pop(0))
-        self.dfs(self.stack.pop(0))
-        self.dfs(self.stack.pop(0))
+        self.dfs()
+        self.dfs()
+        self.dfs()
+        self.dfs()
+        self.dfs()
 
-        self.thread_init()
+        self.thread_init(self.thread_job(self.dfs))
 
 
-    def thread_init(self):
-        workers = [threading.Thread(target=self.thread_dfs, name=str(i)) for i in range(multiprocessing.cpu_count())]
+    def thread_init(self, threadFunc):
+        workers = [threading.Thread(target=threadFunc, name=str(i)) for i in range(multiprocessing.cpu_count())]
 
         for thread in workers:
            thread.start()
@@ -45,36 +46,36 @@ class WikiCrawler(object):
             thread.join()
         logging.info('finish init')
 
-    def thread_dfs(self):
+    def thread_job(self, thread_func):
         while True:
             try:
-                self.queueLock.acquire()
-                if self.stack:
-                    parent = self.stack.pop()
-                    self.queueLock.release()
-                else:
-                    self.queueLock.release()
-                    logging.info("stack is empty!!")
+                # if return value of thread_func is True
+                # means stack is empty.
+                if thread_func():
                     break
-                self.dfs(parent)
             except Exception as e:
-                self.queueLock.acquire()
-                self.stack.append(parent)
-                self.queueLock.release()
-                logging.info('{} has occured an Exception'.format(parent))
-                logging.info(e)
-                raise e
+                logging.error('{} has occured an Exception. \n {}'.format(parent, e))
         logging.info("finish thread job") 
 
     @staticmethod
     def genUrl(category):
         return 'https://zh.wikipedia.org/zh-tw/Category:' + category
 
-    def dfs(self, parent):
+    def dfs(self):
+        self.queueLock.acquire()
+        if self.stack:
+            parent = self.stack.pop()
+            self.queueLock.release()
+        else:
+            self.queueLock.release()
+            logging.info("stack is empty!!")
+            # means the end of thread job
+            return True
+
         result = defaultdict(dict)
 
         res = requests.get(self.genUrl(parent)).text
-        res = BeautifulSoup(res, 'lxml')
+        soup = BeautifulSoup(res, 'lxml')
 
         def push_2_stack(tradText):
             if tradText not in self.visited and True not in {i in tradText for i in ('維基人', '维基人', '總類模板', '维基百科', '維基百科')}:
@@ -87,27 +88,27 @@ class WikiCrawler(object):
             # 代表這是一個重導向的頁面
             # 需要特殊邏輯去爬
             # e.q. https://zh.wikipedia.org/zh-tw/Category:馬爾維納斯羣島
-            redirect = res.select('#SoftRedirect a')
+            redirect = soup.select('#SoftRedirect a')
             if redirect:
                 childNode = redirect[0].text.replace('Category:', '')
                 result[parent].setdefault('node', []).append(childNode)
                 push_2_stack(childNode)
                 return
 
-            for childNode in res.select('.CategoryTreeLabelCategory'):
+            for childNode in soup.select('.CategoryTreeLabelCategory'):
                 tradText = childNode.text
                 
                 # build dictionary
                 result[parent].setdefault('node', []).append(tradText)
 
                 # if it's a node hasn't been through
-                # append these res to stack
+                # append to stack
                 push_2_stack(tradText)
 
         def leafNode():
             nonlocal result
             # leafNode (要注意wiki的leafNode有下一頁的連結，都要traverse完)
-            leafNodeList = [res.select('#mw-pages a')]
+            leafNodeList = [soup.select('#mw-pages a')]
             while leafNodeList:
                 current = leafNodeList.pop(0)
 
@@ -127,25 +128,25 @@ class WikiCrawler(object):
             # insert
             result = [dict({'key':key}, **value) for key, value in result.items()]
 
-        def grandParent():
-            nonlocal result
-            # GrandParent Node
-            # 每個頁面的最底下都會說他們parent category是什麼
-            # 也把它爬其來避免爬蟲有時候因為網路錯誤而漏掉
-            if not result:
-                result = [{'key': parent, 'leafNode':[parent]}]
+        # def grandParent():
+        #     nonlocal result
+        #     # grandParent Node
+        #     # 每個頁面的最底下都會說他們parent category是什麼
+        #     # 也把它爬其來避免爬蟲有時候因為網路錯誤而漏掉
+        #     if not result:
+        #         result = [{'key': parent, 'leafNode':[parent]}]
 
-            for grandParent in res.select('#mw-normal-catlinks li a'):
-                # 空的頁面，啥都沒有...
-                # 這個時候就直接幫他把自己當作leafNode結束這個分支吧
-                # e.q. https://zh.wikipedia.org/zh-tw/Category:特色級時間條目
-                result.append({'key':grandParent.text, 'node':[parent]}) 
-            if not res.select('#mw-normal-catlinks li a'):
-                logging.error("no grand parent: {}".format(self.genUrl(parent)))
+        #     for grandParent in soup.select('#mw-normal-catlinks li a'):
+        #         # 空的頁面，啥都沒有...
+        #         # 這個時候就直接幫他把自己當作leafNode結束這個分支吧
+        #         # e.q. https://zh.wikipedia.org/zh-tw/Category:特色級時間條目
+        #         result.append({'key':grandParent.text, 'node':[parent]}) 
+        #     if not soup.select('#mw-normal-catlinks li a'):
+        #         logging.error("no grand parent: {}".format(self.genUrl(parent)))
 
         node()
         leafNode()
-        grandParent()
+        self.grandParent(result, soup, parent)
         
         if result:
             # [BUG] pymongo.errors.DocumentTooLarge: BSON document too large (39247368 bytes) - the connected server supports BSON document sizes up to 16777216 bytes.
@@ -156,8 +157,42 @@ class WikiCrawler(object):
         self.visited.add(parent)
         logging.info('now is at {} url:{} result:{}'.format(parent, self.genUrl(parent), result))
 
+    @staticmethod
+    def grandParent(result, soup, parent):
+            # grandParent Node
+            # 每個頁面的最底下都會說他們parent category是什麼
+            # 也把它爬其來避免爬蟲有時候因為網路錯誤而漏掉
+            if not result:
+                result.append({'key': parent, 'leafNode':[parent]})
+
+            for gdParent in soup.select('#mw-normal-catlinks li a'):
+                # 空的頁面，啥都沒有...
+                # 這個時候就直接幫他把自己當作leafNode結束這個分支吧
+                # e.q. https://zh.wikipedia.org/zh-tw/Category:特色級時間條目
+                result.append({'key':gdParent.text, 'node':[parent]}) 
+            if not soup.select('#mw-normal-catlinks li a'):
+                logging.error("no grand parent: {}".format(self.genUrl(parent)))
 
     def checkMissing(self):
+        def grepErrorFromLog():
+            logging.info('start grepErrorFromLog')
+            with open(self.logName, 'r') as f:
+                result = set()
+                for i in f:
+                    if ': ERROR :' in i:
+                        if 'no grand parent: ' in i:
+                            url = i.split('no grand parent: ')[1]
+                        else:
+                            url = i.split('no result: ')[1]
+                        url = ''.join(url.rsplit('\n', 1))
+                        parent = url.rsplit(':', 1)[-1]
+                        result.add(parent)
+
+            self.stack.extend(result)
+            # emtpy log file
+            open(self.logName, 'w').close()
+            logging.info('end grepErrorFromLog')
+
         self.visited = set()
         while True:
             self.stack = []
@@ -165,7 +200,7 @@ class WikiCrawler(object):
             # 把WikiCrawler.log裏面發生error的頁面都再爬過一遍
             # 出錯的原因千百種，許多原因不明，那些頁面都是正常的wiki頁面
             # 少部份是因為該wiki為特殊頁面，如重導向頁面、圖片檔庫存頁等等，導致爬蟲邏輯並不適用
-            self.grepErrorFromLog()
+            grepErrorFromLog()
 
             # 把mongo所有點都看過，如果有一個名詞出現在node陣列中，但是在wiki裏面卻查不到該名詞，代表dfs因為不知名原因沒有繼續鑽進去爬，所以現在挑錯就把他挑出來，繼續爬
             for index, child in enumerate(self.Collect.find({}, {'_id':False})):
@@ -174,33 +209,17 @@ class WikiCrawler(object):
                     for node in child["node"]:
                         if not self.Collect.find({'key':node}).limit(1).count():
                             self.stack.append(node)
-
+            logging.warning('missing part is : {}'.format(self.stack))
+            logging.info('miss : {}'.format(str(len(self.stack) / index)))
             if not self.stack:
                 # 經過再三檢查，確定沒有漏掉的node沒有繼續dfs進去後，就可以結束了
                 break
-            logging.info('miss : {}'.format(str(len(self.stack) / index)))
             # 把以前沒爬到的都放進stack中之後就起動thread去爬吧
-            self.thread_init()
-
-    def grepErrorFromLog(self):
-        with open(self.logName, 'r') as f:
-            result = set()
-            for i in f:
-                if ': ERROR :' in i:
-                    if 'no grand parent: ' in i:
-                        url = i.split('no grand parent: ')[1]
-                    else:
-                        url = i.split('no result: ')[1]
-                    url = ''.join(url.rsplit('\n', 1))
-                    parent = url.rsplit(':', 1)[-1]
-                    result.add(parent)
-
-        self.stack.extend(result)
-        # emtpy log file
-        open(self.logName, 'w').close()
+            self.thread_init(self.thread_job(self.dfs))
 
     def mergeMongo(self):
         # merge Collect
+        logging.info("merge begin")
         result = defaultdict(dict)
         for term in self.Collect.find({}, {'_id':False}):
             for key, value in term.items():
@@ -236,6 +255,32 @@ class WikiCrawler(object):
 
     def CrawlFromDumpData(self):
         subprocess.call(['wget', 'https://dumps.wikimedia.org/zhwiki/latest/zhwiki-latest-pages-articles.xml.bz2'])
+        subprocess.call(['WikiExtractor.py', 'zhwiki-latest-pages-articles.xml.bz2', '-o', 'wikijson', '--json'])
+        self.urlStack = []
+        for (dir_path, dir_names, file_names) in os.walk('.'):
+            for file_name in file_names:
+                with open(os.path.join(dir_path, file_name), 'r') as f:
+                    for item in json_lines.reader(f):
+                        self.urlStack.append(item['url'])
+
+        def dumpDataFunc():
+            self.queueLock.acquire()
+            if self.urlStack:
+                parent = self.urlStack.pop()
+                self.queueLock.release()
+            else:
+                self.queueLock.release()
+                logging.info("urlStack is empty!!")
+                # means the end of thread job
+                return True
+
+            result = []
+            soup = BeautifulSoup(requests.get(parent).text, 'lxml')
+            parent = soup.select('#firstHeading')[0].text
+            self.grandParent(result, soup, parent)
+
+        self.thread_init(self.thread_job(dumpDataFunc))
+
 
 if __name__ == '__main__':
     import argparse
@@ -248,19 +293,20 @@ if __name__ == '__main__':
     args = parser.parse_args()
     wiki = WikiCrawler()
     if args.crawl:
-        # wiki.crawl('特色級時間條目')
+        wiki.CrawlFromDumpData()
+        wiki.crawl('日本動畫師')
+        wiki.crawl('特色級時間條目')
         # wiki.crawl('頁面分類')
         # wiki.crawl('中式麵條')
-        # wiki.crawl('各国动画师')
+        wiki.crawl('各国动画师')
         # wiki.crawl('中央大学校友')
-        # wiki.crawl('日本動畫師')
         # wiki.crawl('媒體')
-        wiki.crawl('日本電視動畫')
+        wiki.crawl('xbox%20360遊戲封面')
         # wiki.crawl('喜欢名侦探柯南的维基人')
         # wiki.crawl('日本原創電視動畫')
         # wiki.crawl('富士電視台動畫')
         # wiki.crawl('萌擬人化')
-        wiki.checkMissing()
+        # wiki.checkMissing()
         wiki.mergeMongo()
     elif args.fix:
         wiki.checkMissing()
