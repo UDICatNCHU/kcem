@@ -52,18 +52,33 @@ class WikiKCEM(object):
             else:
                 return []
 
-
         cursor = cursor[0].get('ParentOfLeafNode', []) + cursor[0].get('parentNode', [])
         candidate = {}
         for parent in cursor:
             if keyword not in parent:
                 candidate[parent] = self.toxinomic_score(keyword, parent)
+
+        # Use Min-max normalization
+        M, m = max(candidate.items(), key=lambda x:x[1])[1], min(candidate.items(), key=lambda x:x[1])[1]
+        M = 1 if M == 0 else M
+        summation = 0
+        for k, v in candidate.items():
+            candidate[k] = (v - m) / (M - m)
+            summation += candidate[k]
+
+        # calculate possibility, and the sum of possibility is 1.
+        if summation:
+            for k, v in candidate.items():
+                candidate[k] = v / summation
+
         return sorted(candidate.items(), key=lambda x:-x[1])
 
     def toxinomic_score(self, keyword, parent):
         def getSimilarity(keyword, term):
             try:
-                return self.model.similarity(keyword, term) ** 2
+                similarity = self.model.similarity(keyword, term)
+                sign = 1 if similarity > 0 else -1
+                return sign * (similarity ** 2)
             except KeyError as e:
                 return 0
 
@@ -72,8 +87,11 @@ class WikiKCEM(object):
         similarityScore = reduce(lambda x, y: x+y, scoreList)
 
         keywordKcm = dict(requests.get('http://140.120.13.244:10000/kcm/?keyword={}&lang=cht'.format(keyword)).json())
-        keywordKcmMax = max(keywordKcm.items(), key=lambda x:x[1])[1]
-        kcmScore = reduce(lambda x,y:x+y, [(keywordKcm.get(term, 0) / keywordKcmMax)**2 for term in jiebaCut])
+        if keywordKcm:
+            keywordKcmMax = max(keywordKcm.items(), key=lambda x:x[1])[1]
+            kcmScore = reduce(lambda x,y:x+y, [(keywordKcm.get(term, 0) / keywordKcmMax)**2 for term in jiebaCut])
+        else:
+            kcmScore = 0
         return (similarityScore + kcmScore) / len(jiebaCut)
 
 
