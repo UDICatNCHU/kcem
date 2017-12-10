@@ -33,12 +33,11 @@ class WikiCrawler(object):
         self.dfs()
         self.dfs()
 
-        self.thread_init(self.thread_job(self.dfs))
+        self.thread_init(self.thread_job, self.dfs)
 
-
-    def thread_init(self, threadFunc):
-        workers = [threading.Thread(target=threadFunc, name=str(i)) for i in range(multiprocessing.cpu_count())]
-
+    def thread_init(self, thread_job, thread_func):
+        logging.info("thread init start")
+        workers = [threading.Thread(target=thread_job, args=(thread_func, ), name=str(i)) for i in range(multiprocessing.cpu_count())]
         for thread in workers:
            thread.start()
         # Wait for all threads to complete
@@ -48,13 +47,10 @@ class WikiCrawler(object):
 
     def thread_job(self, thread_func):
         while True:
-            try:
-                # if return value of thread_func is True
-                # means stack is empty.
-                if thread_func():
-                    break
-            except Exception as e:
-                logging.error('{} has occured an Exception. \n {}'.format(parent, e))
+            # if return value of thread_func is True
+            # means stack is empty.
+            if thread_func():
+                break
         logging.info("finish thread job") 
 
     @staticmethod
@@ -62,103 +58,89 @@ class WikiCrawler(object):
         return 'https://zh.wikipedia.org/zh-tw/Category:' + category
 
     def dfs(self):
-        self.queueLock.acquire()
-        if self.stack:
-            parent = self.stack.pop()
-            self.queueLock.release()
-        else:
-            self.queueLock.release()
-            logging.info("stack is empty!!")
-            # means the end of thread job
-            return True
+        try:
+            self.queueLock.acquire()
+            if self.stack:
+                parent = self.stack.pop()
+                self.queueLock.release()
+            else:
+                self.queueLock.release()
+                logging.info("stack is empty!!")
+                # means the end of thread job
+                return True
+    
+            result = defaultdict(dict)
+    
+            res = requests.get(self.genUrl(parent)).text
+            soup = BeautifulSoup(res, 'lxml')
+    
+            def push_2_stack(tradText):
+                if tradText not in self.visited and True not in {i in tradText for i in ('維基人', '维基人', '總類模板', '维基百科', '維基百科')}:
+                    self.stack.append(tradText)
+    
+            def node():
+                # node
+                nonlocal result
+    
+                # 代表這是一個重導向的頁面
+                # 需要特殊邏輯去爬
+                # e.q. https://zh.wikipedia.org/zh-tw/Category:馬爾維納斯羣島
+                redirect = soup.select('#SoftRedirect a')
+                if redirect:
+                    childNode = redirect[0].text.replace('Category:', '')
+                    result[parent].setdefault('node', []).append(childNode)
+                    push_2_stack(childNode)
+                    return
+    
+                for childNode in soup.select('.CategoryTreeLabelCategory'):
+                    tradText = childNode.text
+                    
+                    # build dictionary
+                    result[parent].setdefault('node', []).append(tradText)
+    
+                    # if it's a node hasn't been through
+                    # append to stack
+                    push_2_stack(tradText)
+    
+            def leafNode():
+                nonlocal result
+                # leafNode (要注意wiki的leafNode有下一頁的連結，都要traverse完)
+                leafNodeList = [soup.select('#mw-pages a')]
+                while leafNodeList:
+                    current = leafNodeList.pop(0)
+    
+                    # notyet 變數的意思是，因為wiki會有兩個下一頁的超連結
+                    # 頂部跟底部
+                    # 所以如果把頂部的bs4結果append到leafNodeLIst的話
+                    # 底部就不用重複加
+                    notyet = True
+                    for child in current:
+                        tradChild = child.text
+                        if notyet and tradChild in ('下一頁', '下一页') and child.has_attr('href'):
+                            notyet = False
+                            leafNodeList.append(BeautifulSoup(requests.get(self.wikiBaseUrl + child['href']).text, 'lxml').select('#mw-pages a'))
+                        else:
+                            if tradChild not in ['下一頁', '上一頁', '下一页', '上一页']:
+                                result[parent].setdefault('leafNode', []).append(tradChild)
+                # insert
+                result = [dict({'key':key}, **value) for key, value in result.items()]
+    
+            node()
+            leafNode()
+            self.grandParent(result, soup, parent)
+            
+            if result:
+                # [BUG] pymongo.errors.DocumentTooLarge: BSON document too large (39247368 bytes) - the connected server supports BSON document sizes up to 16777216 bytes.
+                # 會噴錯的都是大陸省份奇怪的資料，不處理並不影響效能
+                self.Collect.insert(result)
+            else:
+                logging.error("no result: {}".format(self.genUrl(parent)))
+            self.visited.add(parent)
+            logging.info('now is at {} url:{} result:{}'.format(parent, self.genUrl(parent), result))
+        except Exception as e:
+            logging.error('{} has occured an Exception. \n {}'.format(e))
 
-        result = defaultdict(dict)
-
-        res = requests.get(self.genUrl(parent)).text
-        soup = BeautifulSoup(res, 'lxml')
-
-        def push_2_stack(tradText):
-            if tradText not in self.visited and True not in {i in tradText for i in ('維基人', '维基人', '總類模板', '维基百科', '維基百科')}:
-                self.stack.append(tradText)
-
-        def node():
-            # node
-            nonlocal result
-
-            # 代表這是一個重導向的頁面
-            # 需要特殊邏輯去爬
-            # e.q. https://zh.wikipedia.org/zh-tw/Category:馬爾維納斯羣島
-            redirect = soup.select('#SoftRedirect a')
-            if redirect:
-                childNode = redirect[0].text.replace('Category:', '')
-                result[parent].setdefault('node', []).append(childNode)
-                push_2_stack(childNode)
-                return
-
-            for childNode in soup.select('.CategoryTreeLabelCategory'):
-                tradText = childNode.text
-                
-                # build dictionary
-                result[parent].setdefault('node', []).append(tradText)
-
-                # if it's a node hasn't been through
-                # append to stack
-                push_2_stack(tradText)
-
-        def leafNode():
-            nonlocal result
-            # leafNode (要注意wiki的leafNode有下一頁的連結，都要traverse完)
-            leafNodeList = [soup.select('#mw-pages a')]
-            while leafNodeList:
-                current = leafNodeList.pop(0)
-
-                # notyet 變數的意思是，因為wiki會有兩個下一頁的超連結
-                # 頂部跟底部
-                # 所以如果把頂部的bs4結果append到leafNodeLIst的話
-                # 底部就不用重複加
-                notyet = True
-                for child in current:
-                    tradChild = child.text
-                    if notyet and tradChild in ('下一頁', '下一页') and child.has_attr('href'):
-                        notyet = False
-                        leafNodeList.append(BeautifulSoup(requests.get(self.wikiBaseUrl + child['href']).text, 'lxml').select('#mw-pages a'))
-                    else:
-                        if tradChild not in ['下一頁', '上一頁', '下一页', '上一页']:
-                            result[parent].setdefault('leafNode', []).append(tradChild)
-            # insert
-            result = [dict({'key':key}, **value) for key, value in result.items()]
-
-        # def grandParent():
-        #     nonlocal result
-        #     # grandParent Node
-        #     # 每個頁面的最底下都會說他們parent category是什麼
-        #     # 也把它爬其來避免爬蟲有時候因為網路錯誤而漏掉
-        #     if not result:
-        #         result = [{'key': parent, 'leafNode':[parent]}]
-
-        #     for grandParent in soup.select('#mw-normal-catlinks li a'):
-        #         # 空的頁面，啥都沒有...
-        #         # 這個時候就直接幫他把自己當作leafNode結束這個分支吧
-        #         # e.q. https://zh.wikipedia.org/zh-tw/Category:特色級時間條目
-        #         result.append({'key':grandParent.text, 'node':[parent]}) 
-        #     if not soup.select('#mw-normal-catlinks li a'):
-        #         logging.error("no grand parent: {}".format(self.genUrl(parent)))
-
-        node()
-        leafNode()
-        self.grandParent(result, soup, parent)
-        
-        if result:
-            # [BUG] pymongo.errors.DocumentTooLarge: BSON document too large (39247368 bytes) - the connected server supports BSON document sizes up to 16777216 bytes.
-            # 會噴錯的都是大陸省份奇怪的資料，不處理並不影響效能
-            self.Collect.insert(result)
-        else:
-            logging.error("no result: {}".format(self.genUrl(parent)))
-        self.visited.add(parent)
-        logging.info('now is at {} url:{} result:{}'.format(parent, self.genUrl(parent), result))
-
-    @staticmethod
-    def grandParent(result, soup, parent):
+    def grandParent(self, result, soup, parent):
             # grandParent Node
             # 每個頁面的最底下都會說他們parent category是什麼
             # 也把它爬其來避免爬蟲有時候因為網路錯誤而漏掉
@@ -215,7 +197,7 @@ class WikiCrawler(object):
                 # 經過再三檢查，確定沒有漏掉的node沒有繼續dfs進去後，就可以結束了
                 break
             # 把以前沒爬到的都放進stack中之後就起動thread去爬吧
-            self.thread_init(self.thread_job(self.dfs))
+            self.thread_init(self.thread_job, self.dfs)
 
     def mergeMongo(self):
         # merge Collect
@@ -254,32 +236,37 @@ class WikiCrawler(object):
 
 
     def CrawlFromDumpData(self):
+        logging.info('start download wiki data')
         subprocess.call(['wget', 'https://dumps.wikimedia.org/zhwiki/latest/zhwiki-latest-pages-articles.xml.bz2'])
         subprocess.call(['WikiExtractor.py', 'zhwiki-latest-pages-articles.xml.bz2', '-o', 'wikijson', '--json'])
         self.urlStack = []
         for (dir_path, dir_names, file_names) in os.walk('.'):
-            for file_name in file_names:
-                with open(os.path.join(dir_path, file_name), 'r') as f:
-                    for item in json_lines.reader(f):
-                        self.urlStack.append(item['url'])
+            if 'wikijson' in dir_path:
+                for file_name in file_names:
+                    with open(os.path.join(dir_path, file_name), 'r') as f:
+                        for item in json_lines.reader(f):
+                            self.urlStack.append(item['url'])
 
         def dumpDataFunc():
-            self.queueLock.acquire()
-            if self.urlStack:
-                parent = self.urlStack.pop()
-                self.queueLock.release()
-            else:
-                self.queueLock.release()
-                logging.info("urlStack is empty!!")
-                # means the end of thread job
-                return True
+            try:
+                self.queueLock.acquire()
+                if self.urlStack:
+                    url = self.urlStack.pop()
+                    self.queueLock.release()
+                else:
+                    self.queueLock.release()
+                    logging.info("urlStack is empty!!")
+                    # means the end of thread job
+                    return True
 
-            result = []
-            soup = BeautifulSoup(requests.get(parent).text, 'lxml')
-            parent = soup.select('#firstHeading')[0].text
-            self.grandParent(result, soup, parent)
-
-        self.thread_init(self.thread_job(dumpDataFunc))
+                result = []
+                soup = BeautifulSoup(requests.get(url).text, 'lxml')
+                parent = soup.select('#firstHeading')[0].text
+                logging.info('now dumpDataFunc is at {}, url: {} '.format(parent, url))
+                self.grandParent(result, soup, parent)
+            except Exception as e:
+                logging.error('{} has occured an Exception. \n {}'.format(parent, e))
+        self.thread_init(self.thread_job, dumpDataFunc)
 
 
 if __name__ == '__main__':
