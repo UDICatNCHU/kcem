@@ -3,6 +3,7 @@ import requests, os.path, threading, multiprocessing, pymongo, logging, sys, sub
 from bs4 import BeautifulSoup
 from collections import defaultdict
 from opencc import OpenCC
+from pyquery import PyQuery
 
 # develop = True
 develop = False
@@ -263,10 +264,10 @@ class WikiCrawler(object):
                     # means the end of thread job
                     return True
 
-                soup = BeautifulSoup(requests.get(url).text, 'lxml')
-                parent = soup.select('#firstHeading')[0].text
+                soup = PyQuery(url)
+                parent = soup('#firstHeading').text()
                 logging.info('now dumpDataFunc is at {}, url: {} '.format(parent, url))
-                result = [{'key':gdParent.text, 'leafNode':[parent]} for gdParent in soup.select('#mw-normal-catlinks a')]
+                result = [{'key':gdParent.text(), 'leafNode':[parent]} for gdParent in soup('#mw-normal-catlinks li a').items()]
                 
                 if result:
                     # [BUG] pymongo.errors.DocumentTooLarge: BSON document too large (39247368 bytes) - the connected server supports BSON document sizes up to 16777216 bytes.
