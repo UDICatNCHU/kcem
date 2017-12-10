@@ -124,10 +124,29 @@ class WikiCrawler(object):
                                 result[parent].setdefault('leafNode', []).append(tradChild)
                 # insert
                 result = [dict({'key':key}, **value) for key, value in result.items()]
-    
+
+            def grandParent():
+                nonlocal result
+                # 空的頁面，啥都沒有...
+                # 這個時候就直接幫他把自己當作leafNode結束這個分支吧
+                # e.q. https://zh.wikipedia.org/zh-tw/Category:特色級時間條目
+                if not result:
+                    result.append({'key': parent, 'leafNode':[parent]})
+
+                # grandParent Node
+                # 每個頁面的最底下都會說他們parent category是什麼
+                # 也把它爬其來避免爬蟲有時候因為網路錯誤而漏掉
+                parentOfNode = soup.select('#mw-normal-catlinks li a')
+                if not parentOfNode:
+                    logging.error("no grand parent: {}".format(self.genUrl(parent)))
+                else:
+                    for gdParent in parentOfNode:
+                        result.append({'key':gdParent.text, 'node':[parent]})
+
+
             node()
             leafNode()
-            self.grandParent(result, soup, parent)
+            grandParent()
             
             if result:
                 # [BUG] pymongo.errors.DocumentTooLarge: BSON document too large (39247368 bytes) - the connected server supports BSON document sizes up to 16777216 bytes.
@@ -139,21 +158,6 @@ class WikiCrawler(object):
             logging.info('now is at {} url:{} result:{}'.format(parent, self.genUrl(parent), result))
         except Exception as e:
             logging.error('{} has occured an Exception. \n {}'.format(e))
-
-    def grandParent(self, result, soup, parent):
-            # grandParent Node
-            # 每個頁面的最底下都會說他們parent category是什麼
-            # 也把它爬其來避免爬蟲有時候因為網路錯誤而漏掉
-            if not result:
-                result.append({'key': parent, 'leafNode':[parent]})
-
-            for gdParent in soup.select('#mw-normal-catlinks li a'):
-                # 空的頁面，啥都沒有...
-                # 這個時候就直接幫他把自己當作leafNode結束這個分支吧
-                # e.q. https://zh.wikipedia.org/zh-tw/Category:特色級時間條目
-                result.append({'key':gdParent.text, 'node':[parent]}) 
-            if not soup.select('#mw-normal-catlinks li a'):
-                logging.error("no grand parent: {}".format(self.genUrl(parent)))
 
     def checkMissing(self):
         def grepErrorFromLog():
@@ -259,11 +263,17 @@ class WikiCrawler(object):
                     # means the end of thread job
                     return True
 
-                result = []
                 soup = BeautifulSoup(requests.get(url).text, 'lxml')
                 parent = soup.select('#firstHeading')[0].text
                 logging.info('now dumpDataFunc is at {}, url: {} '.format(parent, url))
-                self.grandParent(result, soup, parent)
+                result = [{'key':gdParent.text, 'leafNode':[parent]} for gdParent in soup.select('#mw-normal-catlinks a')]
+                
+                if result:
+                    # [BUG] pymongo.errors.DocumentTooLarge: BSON document too large (39247368 bytes) - the connected server supports BSON document sizes up to 16777216 bytes.
+                    # 會噴錯的都是大陸省份奇怪的資料，不處理並不影響效能
+                    self.Collect.insert(result)
+                else:
+                    logging.error("no result: {}".format(self.genUrl(parent)))
             except Exception as e:
                 logging.error('{} has occured an Exception. \n {}'.format(parent, e))
         self.thread_init(self.thread_job, dumpDataFunc)
