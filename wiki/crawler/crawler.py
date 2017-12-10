@@ -273,9 +273,9 @@ class WikiCrawler(object):
                     # 會噴錯的都是大陸省份奇怪的資料，不處理並不影響效能
                     self.Collect.insert(result)
                 else:
-                    logging.error("no result: {}".format(self.genUrl(parent)))
+                    logging.error("no result at: {}".format(url))
             except Exception as e:
-                logging.error('{} has occured an Exception. \n {}'.format(parent, e))
+                logging.error('{} has occured an Exception. \n {}'.format(url, e))
         self.thread_init(self.thread_job, dumpDataFunc)
 
 
