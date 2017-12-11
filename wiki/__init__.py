@@ -55,12 +55,17 @@ class WikiKCEM(object):
         cursor = cursor[0].get('ParentOfLeafNode', []) + cursor[0].get('parentNode', [])
         candidate = {}
         for parent in cursor:
-            if keyword not in parent:
-                candidate[parent] = self.toxinomic_score(keyword, parent)
+            candidate[parent] = self.toxinomic_score(keyword, parent)
+
+        # 如果parent有多種選擇， 那就把跟keyword一模一樣的parent給剔除
+        # 但是如果parent只有唯一的選擇而且跟關鍵字 一樣那就只能選他了
+        if len(candidate) > 1 and keyword in candidate:
+            del candidate[keyword]
 
         # Use Min-max normalization
         M, m = max(candidate.items(), key=lambda x:x[1])[1], min(candidate.items(), key=lambda x:x[1])[1]
-        M = 1 if M == 0 else M
+        if (M==m) or (len(candidate) == 0):
+            M, m = 1, 0
         summation = 0
         for k, v in candidate.items():
             candidate[k] = (v - m) / (M - m)
