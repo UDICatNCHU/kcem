@@ -76,7 +76,7 @@ class WikiKCEM(object):
             for k, v in candidate.items():
                 candidate[k] = v / summation
 
-        return sorted(candidate.items(), key=lambda x:-x[1])
+        return {'keyword':keyword, 'value':sorted(candidate.items(), key=lambda x:-x[1])}
 
     def toxinomic_score(self, keyword, parent):
         def getSimilarity(keyword, term):
@@ -113,6 +113,4 @@ if __name__ == '__main__':
         while True:
             keyword = input('\nplease input the keyword you want to query:\n')
             keyword = keyword.encode('utf-8').decode('utf-8', errors='ignore')
-            print(list(wiki.findParent(keyword)))
-        # 新海誠
-        # print(list(wiki.findPath(args.k)))
+            print(wiki.findParent(keyword))
