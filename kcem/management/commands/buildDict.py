@@ -6,7 +6,7 @@ class Command(BaseCommand):
     help = 'use this to test kcem!'
 
     def handle(self, *args, **options):
-        client = pymongo.MongoClient(None)['nlp']
+        client = pymongo.MongoClient(uri)['nlp']
         reverseCollect = client['wikiReverse']
         Collect = client['wiki']
 

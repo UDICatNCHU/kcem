@@ -237,6 +237,7 @@ class WikiCrawler(object):
         reverseResult = [dict({'key':key}, **value) for key, value in reverseResult.items()]
         self.reverseCollect.remove({})
         self.reverseCollect.insert(reverseResult)
+        self.reverseCollect.create_index([("key", pymongo.HASHED)])
         logging.info("buildInvertedIndex done")
 
 
