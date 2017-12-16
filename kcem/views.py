@@ -4,9 +4,9 @@ from djangoApiDec.djangoApiDec import queryString_required
 from kcem import WikiKCEM
 from udic_nlp_API.settings_database import uri
 
+k = WikiKCEM(uri)
 # Create your views here.
 @queryString_required(['keyword'])
-k = WikiKCEM(uri)
 def kcem(request):
     """Generate list of term data source files
     Returns:

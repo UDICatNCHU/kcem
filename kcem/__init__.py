@@ -4,10 +4,14 @@ from collections import defaultdict
 from ngram import NGram
 from itertools import dropwhile
 from functools import reduce
+from KCM.__main__ import KCM
+
 
 class WikiKCEM(object):
     """docstring for WikiKCEM"""
     def __init__(self, uri=None):
+        self.kcmObject = KCM('cht', 'cht', uri=uri)
+
         self.client = pymongo.MongoClient(uri)['nlp']
         self.Collect = self.client['wiki']
         self.reverseCollect = self.client['wikiReverse']
@@ -81,7 +85,7 @@ class WikiKCEM(object):
         if summation:
             for k, v in candidate.items():
                 candidate[k] = v / summation
-        # key=lambda x:(-x[1], len(x[0]))
+        # 意思：key=lambda x:(-x[1], len(x[0]))
         # 先以分數排序，若同分則優先選擇字數少的category當答案
         return {'keyword':keyword, 'value':sorted(candidate.items(), key=lambda x:(-x[1], len(x[0])))}
 
@@ -101,8 +105,7 @@ class WikiKCEM(object):
             return reduce(lambda x, y: x+y, scoreList)
 
         def kcmScore():
-            keywordKcm = dict(requests.get('http://140.120.13.244:10000/kcm/?keyword={}&lang=cht&num=10000'.format(keyword)).json()['value'])
-            print(keywordKcm)
+            keywordKcm = dict(self.kcmObject.get(keyword, -1).get('value', []))
             if keywordKcm:
                 keywordKcmTotal = sum(keywordKcm.values())
                 return reduce(lambda x,y:x+y, [(keywordKcm.get(term, 0) / keywordKcmTotal)**2 for term in jiebaCut])
