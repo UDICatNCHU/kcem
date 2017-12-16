@@ -113,9 +113,12 @@ class WikiKCEM(object):
                 return 0
 
         def harmonic_mean():
-            cosine, kcm = similarityScore(), kcmScore()
+            cosine, kcm = similarityScore() , kcmScore()
             print(parent, cosine, kcm, len(jiebaCut))
-            return 2 * (cosine/len(jiebaCut) * kcm/len(jiebaCut)) / (cosine/len(jiebaCut) + kcm/len(jiebaCut))
+            if cosine and kcm:
+                return 2 * (cosine/len(jiebaCut) * kcm/len(jiebaCut)) / (cosine/len(jiebaCut) + kcm/len(jiebaCut))
+            else:
+                return 0
 
         if denominator:
             return (similarityScore() + kcmScore()) / denominator(jiebaCut)
