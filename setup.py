@@ -1,4 +1,4 @@
-from distutils.core import setup
+Wfrom distutils.core import setup
 
 setup(
     name = 'kcem',
@@ -14,10 +14,19 @@ setup(
     classifiers = [],
     license='GPL3.0',
     install_requires=[
-        'pymongo',
         'simplejson',
         'requests',
-        'kcmApp',
+        'pymongo',
+        'bs4',
+        'lxml',
+        'jieba',
+        'numpy',
+        'ngram',
+        '-e git://github.com/yichen0831/opencc-python.git@master#egg=opencc-python',
+        'git+git://github.com/attardi/wikiextractor.git@2a5e6aebc030c936c7afd0c349e6826c4d02b871',
+        'pytest',
+        'json-lines',
+        'pyquery',
     ],
     zip_safe=True
 )

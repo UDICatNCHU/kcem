@@ -1,3 +1,4 @@
+# author: Shane Yu  date: April 8, 2017
 from django.core.management.base import BaseCommand, CommandError
 import json, multiprocessing, pymongo, logging, threading, math
 from gensim import models
