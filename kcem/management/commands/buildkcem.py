@@ -3,6 +3,7 @@ from udic_nlp_API.settings_database import uri
 from kcem import WikiKCEM
 import multiprocessing, pymongo, logging, threading, math
 
+logging.basicConfig(format='%(levelname)s : %(asctime)s : %(message)s', filename='buildKCEM.log', level=logging.INFO)
 class Command(BaseCommand):
     help = 'use this to build kcem!'
     
@@ -11,7 +12,6 @@ class Command(BaseCommand):
         keywordList = [i['key'] for i in self.Query.find({}, {'key':1, '_id':False})]
         step = math.ceil(len(keywordList)/multiprocessing.cpu_count())
         keywordPieces = [keywordList[i:i + step] for i in range(0, len(keywordList), step)]
-        logging.basicConfig(format='%(levelname)s : %(asctime)s : %(message)s', filename='buildKCEM.log', level=logging.INFO)
         logging.info('start building kcem')
         self.Collect.remove({})
 

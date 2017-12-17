@@ -1,16 +1,22 @@
 # -*- coding: utf-8 -*-
-import jieba, pymongo, numpy, requests, math
+import jieba, pymongo, numpy, math
 from collections import defaultdict
 from ngram import NGram
 from itertools import dropwhile
 from functools import reduce
-from KCM.__main__ import KCM
 
+DEBUG = True
+DEBUG = False
+if DEBUG:
+    import requests
+else:
+    from KCM.__main__ import KCM
 
 class WikiKCEM(object):
     """docstring for WikiKCEM"""
     def __init__(self, uri=None):
-        self.kcmObject = KCM('cht', 'cht', uri=uri)
+        if not DEBUG:
+            self.kcmObject = KCM('cht', 'cht', uri=uri)
 
         self.client = pymongo.MongoClient(uri)['nlp']
         self.Collect = self.client['wiki']
@@ -60,7 +66,6 @@ class WikiKCEM(object):
         candidate = {}
         for parent in cursor:
             candidate[parent] = self.toxinomic_score(keyword, parent, denominator)
-        print(candidate)
 
         # 如果parent有多種選擇， 那就把跟keyword一模一樣的parent給剔除
         # 但是如果parent只有唯一的選擇而且跟關鍵字 一樣那就只能選他了
@@ -101,11 +106,13 @@ class WikiKCEM(object):
                 except KeyError as e:
                     return 0
             scoreList = [getSimilarity(keyword, term) for term in jiebaCut]
-            print(parent, scoreList, jiebaCut)
             return reduce(lambda x, y: x+y, scoreList)
 
         def kcmScore():
-            keywordKcm = dict(self.kcmObject.get(keyword, -1).get('value', []))
+            if DEBUG:
+                keywordKcm = dict(requests.get('http://140.120.13.244:10000/kcm/?keyword={}&lang=cht&num=-1'.format(keyword)).json()['value'])
+            else:
+                keywordKcm = dict(self.kcmObject.get(keyword, -1).get('value', []))
             if keywordKcm:
                 keywordKcmTotal = sum(keywordKcm.values())
                 return reduce(lambda x,y:x+y, [(keywordKcm.get(term, 0) / keywordKcmTotal)**2 for term in jiebaCut])
@@ -114,7 +121,6 @@ class WikiKCEM(object):
 
         def harmonic_mean():
             cosine, kcm = similarityScore() , kcmScore()
-            print(parent, cosine, kcm, len(jiebaCut))
             if cosine and kcm:
                 return 2 * (cosine/len(jiebaCut) * kcm/len(jiebaCut)) / (cosine/len(jiebaCut) + kcm/len(jiebaCut))
             else:

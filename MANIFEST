@@ -8,6 +8,6 @@ kcem/models.py
 kcem/tests.py
 kcem/urls.py
 kcem/views.py
-kcem/utils/__init__.py
-kcem/utils/utils.py
-kcem/utils/visualization.py
+kcem/management/commands/buildDict.py
+kcem/management/commands/buildkcem.py
+kcem/management/commands/loss.py
