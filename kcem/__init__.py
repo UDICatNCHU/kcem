@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
-import jieba, pymongo, numpy, math
+import jieba, pymongo, numpy, math, pyprind
 from collections import defaultdict
 from ngram import NGram
 from itertools import dropwhile
 from functools import reduce
+from udicOpenData.stopwords import rmsw
 
 DEBUG = True
-DEBUG = False
+# DEBUG = False
 if DEBUG:
     import requests
 else:
@@ -21,6 +22,7 @@ class WikiKCEM(object):
         self.client = pymongo.MongoClient(uri)['nlp']
         self.Collect = self.client['wiki']
         self.reverseCollect = self.client['wikiReverse']
+        self.kcem = self.client['kcem']
         
         from gensim import models
         self.model = models.KeyedVectors.load_word2vec_format('./med400.model.bin', binary=True)
@@ -60,7 +62,11 @@ class WikiKCEM(object):
             if keyword:
                 cursor = self.reverseCollect.find({'key':keyword}, {'_id':False}).limit(1)
             else:
-                return []
+                self.kcem.insert({'key':keyword, 'value':[]})
+
+        kcem = self.kcem.find({'key':keyword}, {'_id':False}).limit(1)
+        if kcem.count():
+            return kcem[0]
 
         cursor = cursor[0].get('ParentOfLeafNode', []) + cursor[0].get('parentNode', [])
         candidate = {}
@@ -92,7 +98,9 @@ class WikiKCEM(object):
                 candidate[k] = v / summation
         # 意思：key=lambda x:(-x[1], len(x[0]))
         # 先以分數排序，若同分則優先選擇字數少的category當答案
-        return {'keyword':keyword, 'value':sorted(candidate.items(), key=lambda x:(-x[1], len(x[0])))}
+        result = {'key':keyword, 'value':sorted(candidate.items(), key=lambda x:(-x[1], len(x[0])))}
+        self.kcem.insert(result)
+        return result
 
     def toxinomic_score(self, keyword, parent, denominator):
         jiebaCut = jieba.lcut(parent)
@@ -132,6 +140,20 @@ class WikiKCEM(object):
             # default mode
             # return (similarityScore() + kcmScore()) / 1.17 ** len(jiebaCut)
             return harmonic_mean()
+
+    def classify(self, file):
+        import json
+        kcemTable = {}
+        context = ''.join(i['context'] for i in json.load(open(file, 'r')))
+        result = defaultdict(list)
+        # for key in rmsw(context, 'n'):
+        for key in pyprind.prog_bar(list(rmsw(context, 'n'))):
+            rawParent = self.findParent(key)
+            parent = kcemTable.setdefault(key, rawParent['value'][0][0] if rawParent['value'] and rawParent['key'] == key else None)
+            if parent:
+                result[parent].append(key)
+        result = {k:len(v) for k,v in result.items()}
+        return sorted(result.items(), key=lambda x:-x[1])
 
 
     def loss(self):
@@ -174,6 +196,8 @@ if __name__ == '__main__':
     ''')
     parser.add_argument('-k', metavar='keyword', help='keyword')
     parser.add_argument('-t', help='test which benchmark is better')
+    parser.add_argument('-c', help='use classfiy mode')
+    parser.add_argument('-f', help='file used to classfiy')
     args = parser.parse_args()
     wiki = WikiKCEM()
     if args.k:
@@ -183,3 +207,5 @@ if __name__ == '__main__':
             print(wiki.findParent(keyword))
     if args.t:
         wiki.loss()
+    if args.c:
+        print(wiki.classify(args.f))

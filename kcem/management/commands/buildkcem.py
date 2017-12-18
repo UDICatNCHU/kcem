@@ -21,7 +21,8 @@ class Command(BaseCommand):
                 ThreadResult.append(k.findParent(keyword))
                 if index % 1000 == 0:
                     logging.info("已處理 %d 個單子" % index)
-            self.Collect.insert(ThreadResult)
+                    self.Collect.insert(ThreadResult)
+                    ThreadResult = []
 
         workers = [threading.Thread(target=activateKCEM, kwargs={'keywordThreadList':keywordPieces[i]}, name=str(i)) for i in range(multiprocessing.cpu_count())]
 
