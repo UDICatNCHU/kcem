@@ -5,6 +5,7 @@ from ngram import NGram
 from itertools import dropwhile
 from functools import reduce
 from udicOpenData.stopwords import rmsw
+from udic_nlp_API.settings import W2VMODEL
 
 DEBUG = True
 # DEBUG = False
@@ -24,8 +25,7 @@ class WikiKCEM(object):
         self.reverseCollect = self.client['wikiReverse']
         self.kcem = self.client['kcem']
         
-        from gensim import models
-        self.model = models.KeyedVectors.load_word2vec_format('./med400.model.bin', binary=True)
+        self.model = W2VMODEL
         self.wikiNgram = NGram((i['key'] for i in self.reverseCollect.find({}, {'key':1, '_id':False})))
             
     @staticmethod
