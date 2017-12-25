@@ -2,25 +2,26 @@
 
 KCEM的class檔，可以透過 `pip` 直接安裝
 
-## Getting Started
-
-These instructions will get you a copy of the project up and running on your local machine for development and testing purposes. See deployment for notes on how to deploy the project on a live system.
-
-## Prerequisities
-
-1. OS：Ubuntu / OSX would be nice
-2. environment：need `python3`
-
-  - Linux：`sudo apt-get update; sudo apt-get install; python3 python3-dev`
-  - OSX：`brew install python3`
 
 ## Installing
 
 1. `pip install kcem`
 
-## Running & Testing
+## 
 
-## Run
+## Running
+
+### Commands
+
+1. buildDict: `python3 manage.py buildDict` will output a jieba dictionary named `wiki.dict.txt` from Wikipedia Hierarchy as data source.
+2. buildkcem: `python3 manage.py buildkcem` will calculate the best hypernym of each entity from Wikipedia.
+3. crawlWiki:
+    * `python3 manage.py crawlWiki --crawl=1`: Crawl all the page from Wikipedia and build Hierarchy.
+    * `python3 manage.py crawlWiki --fix=1`: Check and fix those missing nodes and entities crawled from Wikipedia.
+    * `python3 manage.py crawlWiki --disambiguation=1`: Crawl those sidambiguation pages from Wikipedia.
+4. loss: not yet.
+
+### Config
 
 1. `settings.py`裏面需要新增`kcem`這個app：
 

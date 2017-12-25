@@ -4,6 +4,8 @@ from bs4 import BeautifulSoup
 from collections import defaultdict
 from opencc import OpenCC
 from pyquery import PyQuery
+from kcem.ignorelist import IGNORELIST
+from pyquery import PyQuery as pq
 
 # develop = True
 develop = False
@@ -55,28 +57,31 @@ class WikiCrawler(object):
         logging.info("finish thread job") 
 
     @staticmethod
-    def genUrl(category):
+    def genUrl(category, disambiguation=False):
+        if disambiguation:
+            return 'https://zh.wikipedia.org/zh-tw/' + category
         return 'https://zh.wikipedia.org/zh-tw/Category:' + category
 
-    def dfs(self):
+    def dfs(self, parent=None, disambiguation=False):
         try:
-            self.queueLock.acquire()
-            if self.stack:
-                parent = self.stack.pop()
-                self.queueLock.release()
-            else:
-                self.queueLock.release()
-                logging.info("stack is empty!!")
-                # means the end of thread job
-                return True
-    
+            if not parent:
+                self.queueLock.acquire()
+                if self.stack:
+                    parent = self.stack.pop()
+                    self.queueLock.release()
+                else:
+                    self.queueLock.release()
+                    logging.info("stack is empty!!")
+                    # means the end of thread job
+                    return True
+
             result = defaultdict(dict)
     
             res = requests.get(self.genUrl(parent)).text
             soup = BeautifulSoup(res, 'lxml')
     
             def push_2_stack(tradText):
-                if tradText not in self.visited and True not in {i in tradText for i in ('維基人', '维基人', '總類模板', '维基百科', '維基百科')}:
+                if tradText not in self.visited and True not in {i in tradText for i in IGNORELIST}:
                     self.stack.append(tradText)
     
             def node():
@@ -92,6 +97,8 @@ class WikiCrawler(object):
                     result[parent].setdefault('node', []).append(childNode)
                     push_2_stack(childNode)
                     return
+
+                    
     
                 for childNode in soup.select('.CategoryTreeLabelCategory'):
                     tradText = childNode.text
@@ -104,7 +111,21 @@ class WikiCrawler(object):
                     push_2_stack(tradText)
     
             def leafNode():
+                def disAmb(childText):
+                    disAmbResult = {'key':childText, 'leafNode':[]}
+                    soup = pq(self.genUrl(childText, disambiguation=True))
+                    if soup('#參考來源', '#参考来源'):
+                        disambiguationCandidates = {pq(j).text() for i in soup('#參考來源', '#参考来源').parent().prev_all().items() for j in i('a').filter(lambda x: '/wiki/' in pq(this).attr('href'))}
+                    elif soup('#參見', '#参见'):
+                        disambiguationCandidates = {pq(j).text() for i in soup('#參見, #参见').parent().prev_all().items() for j in i('a').filter(lambda x: '/wiki/' in pq(this).attr('href'))}
+                    else:
+                        disambiguationCandidates = {pq(j).text() for i in soup('div.mw-parser-output a').items() for j in i('a').filter(lambda x: '/wiki/' in pq(this).attr('href') and ':' not in pq(this).attr('href'))}
+                    for candidate in disambiguationCandidates:
+                        disAmbResult['leafNode'].append(candidate)
+                    self.Collect.insert(disAmbResult)
+
                 nonlocal result
+
                 # leafNode (要注意wiki的leafNode有下一頁的連結，都要traverse完)
                 leafNodeList = [soup.select('#mw-pages a')]
                 while leafNodeList:
@@ -116,13 +137,16 @@ class WikiCrawler(object):
                     # 底部就不用重複加
                     notyet = True
                     for child in current:
-                        tradChild = child.text
-                        if notyet and tradChild in ('下一頁', '下一页') and child.has_attr('href'):
+                        childText = child.text
+                        if notyet and childText in ('下一頁', '下一页') and child.has_attr('href'):
                             notyet = False
                             leafNodeList.append(BeautifulSoup(requests.get(self.wikiBaseUrl + child['href']).text, 'lxml').select('#mw-pages a'))
                         else:
-                            if tradChild not in ['下一頁', '上一頁', '下一页', '上一页']:
-                                result[parent].setdefault('leafNode', []).append(tradChild)
+                            if childText not in ['下一頁', '上一頁', '下一页', '上一页']:
+                                result[parent].setdefault('leafNode', []).append(childText)
+                            if disambiguation:
+                                disAmb(childText)
+                                
                 # insert
                 result = [dict({'key':key}, **value) for key, value in result.items()]
 
@@ -143,7 +167,6 @@ class WikiCrawler(object):
                 else:
                     for gdParent in parentOfNode:
                         result.append({'key':gdParent.text, 'node':[parent]})
-
 
             node()
             leafNode()
@@ -279,34 +302,3 @@ class WikiCrawler(object):
             except Exception as e:
                 logging.error('{} has occured an Exception. \n {}'.format(url, e))
         self.thread_init(self.thread_job, dumpDataFunc)
-
-
-if __name__ == '__main__':
-    import argparse
-    """The main routine."""
-    parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, description='''
-        build kcm model and insert it into mongoDB with command line.    
-    ''')
-    parser.add_argument('-crawl', metavar='mode of crawler', help='mode of crawler', type=bool)
-    parser.add_argument('-fix', metavar='fix missing node', help='fix missing node', type=bool)
-    args = parser.parse_args()
-    wiki = WikiCrawler()
-    if args.crawl:
-        wiki.CrawlFromDumpData()
-        wiki.crawl('日本動畫師')
-        wiki.crawl('特色級時間條目')
-        # wiki.crawl('頁面分類')
-        # wiki.crawl('中式麵條')
-        wiki.crawl('各国动画师')
-        # wiki.crawl('中央大学校友')
-        # wiki.crawl('媒體')
-        wiki.crawl('xbox%20360遊戲封面')
-        # wiki.crawl('喜欢名侦探柯南的维基人')
-        # wiki.crawl('日本原創電視動畫')
-        # wiki.crawl('富士電視台動畫')
-        # wiki.crawl('萌擬人化')
-        # wiki.checkMissing()
-        wiki.mergeMongo()
-    elif args.fix:
-        wiki.checkMissing()
-        wiki.mergeMongo()
