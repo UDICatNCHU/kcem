@@ -6,6 +6,8 @@ KCEM的class檔，可以透過 `pip` 直接安裝
 ## Installing
 
 1. `pip install kcem`
+2. `pip3 install git+git://github.com/yichen0831/opencc-python.git@master#egg=opencc-python`
+3. `pip3 install git+git://github.com/attardi/wikiextractor.git@2a5e6aebc030c936c7afd0c349e6826c4d02b871`
 
 ## 
 

@@ -9,6 +9,8 @@ kcem/models.py
 kcem/tests.py
 kcem/urls.py
 kcem/views.py
+kcem/crawler/__init__.py
+kcem/crawler/crawler.py
 kcem/management/commands/buildDict.py
 kcem/management/commands/buildkcem.py
 kcem/management/commands/crawlWiki.py

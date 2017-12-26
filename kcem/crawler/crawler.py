@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
-import requests, os.path, threading, multiprocessing, pymongo, logging, sys, subprocess, json_lines, os
+import requests, os.path, threading, multiprocessing, pymongo, logging, sys, subprocess, json_lines, os, urllib
 from bs4 import BeautifulSoup
 from collections import defaultdict
 from opencc import OpenCC
 from pyquery import PyQuery
 from kcem.ignorelist import IGNORELIST
 from pyquery import PyQuery as pq
+from udic_nlp_API.settings_database import uri
 
 # develop = True
 develop = False
@@ -21,7 +22,7 @@ class WikiCrawler(object):
         logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO, filename=self.logName)
         self.openCC = OpenCC('s2t')
         self.wikiBaseUrl = 'https://zh.wikipedia.org'
-        self.client = pymongo.MongoClient(None)[database]
+        self.client = pymongo.MongoClient(uri)[database]
         self.Collect = self.client['wiki']
         self.reverseCollect = self.client['wikiReverse']
         self.queueLock = threading.Lock()
@@ -59,8 +60,8 @@ class WikiCrawler(object):
     @staticmethod
     def genUrl(category, disambiguation=False):
         if disambiguation:
-            return 'https://zh.wikipedia.org/zh-tw/' + category
-        return 'https://zh.wikipedia.org/zh-tw/Category:' + category
+            return 'https://zh.wikipedia.org/zh-tw/' + urllib.parse.quote(category)
+        return 'https://zh.wikipedia.org/zh-tw/Category:' + urllib.parse.quote(category)
 
     def dfs(self, parent=None, disambiguation=False):
         try:
@@ -114,12 +115,13 @@ class WikiCrawler(object):
                 def disAmb(childText):
                     disAmbResult = {'key':childText, 'leafNode':[]}
                     soup = pq(self.genUrl(childText, disambiguation=True))
-                    if soup('#參考來源', '#参考来源'):
-                        disambiguationCandidates = {pq(j).text() for i in soup('#參考來源', '#参考来源').parent().prev_all().items() for j in i('a').filter(lambda x: '/wiki/' in pq(this).attr('href'))}
-                    elif soup('#參見', '#参见'):
-                        disambiguationCandidates = {pq(j).text() for i in soup('#參見, #参见').parent().prev_all().items() for j in i('a').filter(lambda x: '/wiki/' in pq(this).attr('href'))}
+                    if soup('#參考來源, #参考来源'):
+                        disambiguationCandidates = soup('#參考來源, #参考来源').parent().prev_all().items()
+                    elif soup('#參見, #参见'):
+                        disambiguationCandidates = soup('#參見, #参见').parent().prev_all().items()
                     else:
-                        disambiguationCandidates = {pq(j).text() for i in soup('div.mw-parser-output a').items() for j in i('a').filter(lambda x: '/wiki/' in pq(this).attr('href') and ':' not in pq(this).attr('href'))}
+                        disambiguationCandidates = soup('#mw-content-text a').items()
+                    disambiguationCandidates = {pq(j).text() for i in disambiguationCandidates for j in i('a').filter(lambda x: pq(this).attr('href') and pq(this).text() and '/wiki/' in pq(this).attr('href') and ':' not in pq(this).attr('href') and pq(this).text() not in IGNORELIST)}
                     for candidate in disambiguationCandidates:
                         disAmbResult['leafNode'].append(candidate)
                     self.Collect.insert(disAmbResult)
@@ -138,15 +140,16 @@ class WikiCrawler(object):
                     notyet = True
                     for child in current:
                         childText = child.text
+                        print(childText)
                         if notyet and childText in ('下一頁', '下一页') and child.has_attr('href'):
                             notyet = False
+                            print(self.wikiBaseUrl + child['href'])
                             leafNodeList.append(BeautifulSoup(requests.get(self.wikiBaseUrl + child['href']).text, 'lxml').select('#mw-pages a'))
-                        else:
-                            if childText not in ['下一頁', '上一頁', '下一页', '上一页']:
-                                result[parent].setdefault('leafNode', []).append(childText)
+                        elif childText not in ['下一頁', '上一頁', '下一页', '上一页']:
+                            result[parent].setdefault('leafNode', []).append(childText)
+
                             if disambiguation:
                                 disAmb(childText)
-                                
                 # insert
                 result = [dict({'key':key}, **value) for key, value in result.items()]
 
@@ -181,7 +184,8 @@ class WikiCrawler(object):
             self.visited.add(parent)
             logging.info('now is at {} url:{} result:{}'.format(parent, self.genUrl(parent), result))
         except Exception as e:
-            logging.error('{} has occured an Exception. \n {}'.format(e))
+            logging.error('{} has occured an Exception. \n {}'.format(parent, e))
+            raise e
 
     def checkMissing(self):
         def grepErrorFromLog():
