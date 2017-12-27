@@ -13,9 +13,9 @@ class Command(BaseCommand):
         wiki = WikiCrawler()
         if options['crawl']:
             wiki.CrawlFromDumpData()
+            wiki.crawl('頁面分類')
             wiki.crawl('日本動畫師')
             wiki.crawl('特色級時間條目')
-            # wiki.crawl('頁面分類')
             # wiki.crawl('中式麵條')
             wiki.crawl('各国动画师')
             # wiki.crawl('中央大学校友')

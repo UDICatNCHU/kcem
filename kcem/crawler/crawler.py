@@ -232,6 +232,20 @@ class WikiCrawler(object):
             self.thread_init(self.thread_job, self.dfs)
 
     def mergeMongo(self):
+        def buildInvertedIndex():
+            # build reverseCollect
+            reverseResult = defaultdict(dict)
+            for parent in self.Collect.find({}, {'_id':False}):
+                for leafNode in parent.get('leafNode', []):
+                    reverseResult[leafNode].setdefault('ParentOfLeafNode', []).append(parent['key'])
+                for node in parent.get('node', []):
+                    reverseResult[node].setdefault('parentNode', []).append(parent['key'])
+            reverseResult = [dict({'key':key}, **value) for key, value in reverseResult.items()]
+            self.reverseCollect.remove({})
+            self.reverseCollect.insert(reverseResult)
+            self.reverseCollect.create_index([("key", pymongo.HASHED)])
+            logging.info("buildInvertedIndex done")
+
         # merge Collect
         logging.info("merge begin")
         result = defaultdict(dict)
@@ -251,26 +265,14 @@ class WikiCrawler(object):
 
         logging.info("merge done")
 
-        self.buildInvertedIndex()
+        buildInvertedIndex()
 
-    def buildInvertedIndex(self):
-        # build reverseCollect
-        reverseResult = defaultdict(dict)
-        for parent in self.Collect.find({}, {'_id':False}):
-            for leafNode in parent.get('leafNode', []):
-                reverseResult[leafNode].setdefault('ParentOfLeafNode', []).append(parent['key'])
-            for node in parent.get('node', []):
-                reverseResult[node].setdefault('parentNode', []).append(parent['key'])
-        reverseResult = [dict({'key':key}, **value) for key, value in reverseResult.items()]
-        self.reverseCollect.remove({})
-        self.reverseCollect.insert(reverseResult)
-        self.reverseCollect.create_index([("key", pymongo.HASHED)])
-        logging.info("buildInvertedIndex done")
 
 
     def CrawlFromDumpData(self):
         logging.info('start download wiki data')
-        subprocess.call(['wget', 'https://dumps.wikimedia.org/zhwiki/latest/zhwiki-latest-pages-articles.xml.bz2'])
+        if not os.path.isfile('build/zhwiki-latest-pages-articles.xml.bz2'):
+            subprocess.call(['wget', 'https://dumps.wikimedia.org/zhwiki/latest/zhwiki-latest-pages-articles.xml.bz2'])
         subprocess.call(['WikiExtractor.py', 'zhwiki-latest-pages-articles.xml.bz2', '-o', 'wikijson', '--json'])
         self.urlStack = []
         for (dir_path, dir_names, file_names) in os.walk('.'):

@@ -5,10 +5,8 @@ from ngram import NGram
 from itertools import dropwhile
 from functools import reduce
 from udicOpenData.stopwords import rmsw
-from udic_nlp_API.settings import W2VMODEL
+from udic_nlp_API.settings import W2VMODEL, DEBUG
 
-DEBUG = True
-# DEBUG = False
 if DEBUG:
     import requests
 else:
@@ -27,6 +25,7 @@ class WikiKCEM(object):
         
         self.model = W2VMODEL
         self.wikiNgram = NGram((i['key'] for i in self.reverseCollect.find({}, {'key':1, '_id':False})))
+        self.kcemNgram = NGram((i['key'] for i in self.kcem.find({}, {'key':1, '_id':False})))
             
     @staticmethod
     def findPath(keyword):
@@ -53,25 +52,24 @@ class WikiKCEM(object):
             else:
                 yield path
 
-    def findParent(self, keyword, denominator=None):
+    def get(self, keyword):
         # if not in wiki Category
         # use wiki Ngram to search
+        result = self.kcem.find({'key':keyword}, {'_id':False}).limit(1)
+        if result.count():
+            return result[0]
+        else:
+            kcemKeyword = self.kcemNgram.find(keyword)
+            if kcemKeyword:
+                result = self.kcem.find({'key':kcemKeyword}, {'_id':False}).limit(1)[0]
+                return {**result, 'similarity':self.kcem.compare(keyword, kcemKeyword)}
+            return {'key':keyword, 'value':[], 'similarity':0}
+
+    def buildParent(self, keyword, denominator=None):
         cursor = self.reverseCollect.find({'key':keyword}, {'_id':False}).limit(1)
-        if not cursor.count():
-            keyword = self.wikiNgram.find(keyword)
-            if keyword:
-                cursor = self.reverseCollect.find({'key':keyword}, {'_id':False}).limit(1)
-            else:
-                self.kcem.insert({'key':keyword, 'value':[]})
-
-        kcem = self.kcem.find({'key':keyword}, {'_id':False}).limit(1)
-        if kcem.count():
-            return kcem[0]
-
+        if not cursor.count(): return
         cursor = cursor[0].get('ParentOfLeafNode', []) + cursor[0].get('parentNode', [])
-        candidate = {}
-        for parent in cursor:
-            candidate[parent] = self.toxinomic_score(keyword, parent, denominator)
+        candidate = {parent: self.toxinomic_score(keyword, parent, denominator) for parent in cursor}
 
         # 如果parent有多種選擇， 那就把跟keyword一模一樣的parent給剔除
         # 但是如果parent只有唯一的選擇而且跟關鍵字 一樣那就只能選他了
@@ -98,12 +96,12 @@ class WikiKCEM(object):
                 candidate[k] = v / summation
         # 意思：key=lambda x:(-x[1], len(x[0]))
         # 先以分數排序，若同分則優先選擇字數少的category當答案
-        result = {'key':keyword, 'value':sorted(candidate.items(), key=lambda x:(-x[1], len(x[0])))}
+        result = {'key':keyword, 'value':sorted(candidate.items(), key=lambda x:(-x[1], len(x[0]))), 'similarity':1}
         self.kcem.insert(result)
         return result
 
     def toxinomic_score(self, keyword, parent, denominator):
-        jiebaCut = jieba.lcut(parent)
+        jiebaCut = jieba.lcut(parent, cut_all=True)
         def similarityScore():
             def getSimilarity(keyword, term):
                 try:
@@ -148,7 +146,7 @@ class WikiKCEM(object):
         result = defaultdict(list)
         # for key in rmsw(context, 'n'):
         for key in pyprind.prog_bar(list(rmsw(context, 'n'))):
-            rawParent = self.findParent(key)
+            rawParent = self.get(key)
             parent = kcemTable.setdefault(key, rawParent['value'][0][0] if rawParent['value'] and rawParent['key'] == key else None)
             if parent:
                 result[parent].append(key)
@@ -162,29 +160,29 @@ class WikiKCEM(object):
         answer = json.load(open('answer.json', 'r'))
         power = []
         for i in np.arange(1.0, 1.5, 0.005):
-            power.append(sum([dict(self.findParent(term, lambda jiebaCut:i ** len(jiebaCut))['value'])[answer[term]] for term in answer]))
+            power.append(sum([dict(self.get(term, lambda jiebaCut:i ** len(jiebaCut))['value'])[answer[term]] for term in answer]))
         print(power)
         print('1 + lnN')
-        print(sum([dict(self.findParent(term, lambda jiebaCut:len(jiebaCut) * math.log1p(len(jiebaCut)))['value'])[answer[term]] for term in answer]))
+        print(sum([dict(self.get(term, lambda jiebaCut:len(jiebaCut) * math.log1p(len(jiebaCut)))['value'])[answer[term]] for term in answer]))
         print('1 + log10 N')
-        print(sum([dict(self.findParent(term, lambda jiebaCut:1+math.log(len(jiebaCut), 10))['value'])[answer[term]] for term in answer]))
+        print(sum([dict(self.get(term, lambda jiebaCut:1+math.log(len(jiebaCut), 10))['value'])[answer[term]] for term in answer]))
         print('1 + log2 N')
-        print(sum([dict(self.findParent(term, lambda jiebaCut:1+math.log(len(jiebaCut), 2))['value'])[answer[term]] for term in answer]))
+        print(sum([dict(self.get(term, lambda jiebaCut:1+math.log(len(jiebaCut), 2))['value'])[answer[term]] for term in answer]))
         print('N (1 + logN)')
-        print(sum([dict(self.findParent(term, lambda jiebaCut: len(jiebaCut)*(1+math.log(len(jiebaCut), 2)))['value'])[answer[term]] for term in answer]))
+        print(sum([dict(self.get(term, lambda jiebaCut: len(jiebaCut)*(1+math.log(len(jiebaCut), 2)))['value'])[answer[term]] for term in answer]))
         print('1 + NlogN')
-        print(sum([dict(self.findParent(term, lambda jiebaCut:1+len(jiebaCut) * math.log(len(jiebaCut), 2))['value'])[answer[term]] for term in answer]))
+        print(sum([dict(self.get(term, lambda jiebaCut:1+len(jiebaCut) * math.log(len(jiebaCut), 2))['value'])[answer[term]] for term in answer]))
 
         print('1 + NlogX N')
         power = []
         for i in np.arange(1.05, 10, 0.05):
-            power.append(sum([dict(self.findParent(term, lambda jiebaCut:1+len(jiebaCut)*math.log(len(jiebaCut), i))['value'])[answer[term]] for term in answer]))
+            power.append(sum([dict(self.get(term, lambda jiebaCut:1+len(jiebaCut)*math.log(len(jiebaCut), i))['value'])[answer[term]] for term in answer]))
         print(power)
 
         print('N (1 + logX N)')
         power = []
         for i in np.arange(1.05, 10, 0.05):
-            power.append(sum([dict(self.findParent(term, lambda jiebaCut: len(jiebaCut)*(1+math.log(len(jiebaCut), i)))['value'])[answer[term]] for term in answer]))
+            power.append(sum([dict(self.get(term, lambda jiebaCut: len(jiebaCut)*(1+math.log(len(jiebaCut), i)))['value'])[answer[term]] for term in answer]))
         print(power)
 
 
@@ -204,7 +202,7 @@ if __name__ == '__main__':
         while True:
             keyword = input('\nplease input the keyword you want to query:\n')
             keyword = keyword.encode('utf-8').decode('utf-8', errors='ignore')
-            print(wiki.findParent(keyword))
+            print(wiki.get(keyword))
     if args.t:
         wiki.loss()
     if args.c:

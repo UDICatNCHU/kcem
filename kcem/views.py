@@ -13,4 +13,4 @@ def kcem(request):
         if contains invalid queryString key, it will raise exception.
     """
     keyword = request.GET['keyword']
-    return JsonResponse(k.findParent(keyword), safe=False)
+    return JsonResponse(k.get(keyword), safe=False)
