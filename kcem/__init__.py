@@ -5,18 +5,14 @@ from ngram import NGram
 from itertools import dropwhile
 from functools import reduce
 from udicOpenData.stopwords import rmsw
-from udic_nlp_API.settings import W2VMODEL, DEBUG
+from udic_nlp_API.settings import W2VMODEL
+from KCM.__main__ import KCM
 
-if DEBUG:
-    import requests
-else:
-    from KCM.__main__ import KCM
 
 class WikiKCEM(object):
     """docstring for WikiKCEM"""
     def __init__(self, uri=None):
-        if not DEBUG:
-            self.kcmObject = KCM('cht', 'cht', uri=uri)
+        self.kcmObject = KCM('cht', 'cht', uri=uri)
 
         self.client = pymongo.MongoClient(uri)['nlp']
         self.Collect = self.client['wiki']
@@ -25,7 +21,6 @@ class WikiKCEM(object):
         
         self.model = W2VMODEL
         self.wikiNgram = NGram((i['key'] for i in self.reverseCollect.find({}, {'key':1, '_id':False})))
-        self.kcemNgram = NGram((i['key'] for i in self.kcem.find({}, {'key':1, '_id':False})))
             
     @staticmethod
     def findPath(keyword):
@@ -59,17 +54,17 @@ class WikiKCEM(object):
         if result.count():
             return result[0]
         else:
-            kcemKeyword = self.kcemNgram.find(keyword)
+            kcemKeyword = self.wikiNgram.find(keyword)
             if kcemKeyword:
                 result = self.kcem.find({'key':kcemKeyword}, {'_id':False}).limit(1)[0]
                 return {**result, 'similarity':self.kcem.compare(keyword, kcemKeyword)}
             return {'key':keyword, 'value':[], 'similarity':0}
 
-    def buildParent(self, keyword, denominator=None):
+    def buildParent(self, keyword):
         cursor = self.reverseCollect.find({'key':keyword}, {'_id':False}).limit(1)
         if not cursor.count(): return
         cursor = cursor[0].get('ParentOfLeafNode', []) + cursor[0].get('parentNode', [])
-        candidate = {parent: self.toxinomic_score(keyword, parent, denominator) for parent in cursor}
+        candidate = {parent: self.toxinomic_score(keyword, parent) for parent in cursor}
 
         # 如果parent有多種選擇， 那就把跟keyword一模一樣的parent給剔除
         # 但是如果parent只有唯一的選擇而且跟關鍵字 一樣那就只能選他了
@@ -97,28 +92,23 @@ class WikiKCEM(object):
         # 意思：key=lambda x:(-x[1], len(x[0]))
         # 先以分數排序，若同分則優先選擇字數少的category當答案
         result = {'key':keyword, 'value':sorted(candidate.items(), key=lambda x:(-x[1], len(x[0]))), 'similarity':1}
-        self.kcem.insert(result)
         return result
 
-    def toxinomic_score(self, keyword, parent, denominator):
+    def toxinomic_score(self, keyword, parent):
         jiebaCut = jieba.lcut(parent, cut_all=True)
         def similarityScore():
             def getSimilarity(keyword, term):
                 try:
                     similarity = self.model.similarity(keyword, term)
-                    # sign = 1 if similarity > 0 else -1
-                    # return sign * (similarity ** 2)
-                    return similarity ** 2
+                    sign = 1 if similarity > 0 else -1
+                    return sign * (similarity ** 2)
                 except KeyError as e:
                     return 0
             scoreList = [getSimilarity(keyword, term) for term in jiebaCut]
             return reduce(lambda x, y: x+y, scoreList)
 
         def kcmScore():
-            if DEBUG:
-                keywordKcm = dict(requests.get('http://140.120.13.244:10000/kcm/?keyword={}&lang=cht&num=-1'.format(keyword)).json()['value'])
-            else:
-                keywordKcm = dict(self.kcmObject.get(keyword, -1).get('value', []))
+            keywordKcm = dict(self.kcmObject.get(keyword, -1).get('value', []))
             if keywordKcm:
                 keywordKcmTotal = sum(keywordKcm.values())
                 return reduce(lambda x,y:x+y, [(keywordKcm.get(term, 0) / keywordKcmTotal)**2 for term in jiebaCut])
@@ -132,12 +122,12 @@ class WikiKCEM(object):
             else:
                 return 0
 
-        if denominator:
-            return (similarityScore() + kcmScore()) / denominator(jiebaCut)
-        else:
-            # default mode
-            # return (similarityScore() + kcmScore()) / 1.17 ** len(jiebaCut)
+        # default mode
+        # return (similarityScore() + kcmScore()) / 1.17 ** len(jiebaCut)
+        if keyword in W2VMODEL.wv.vocab:
             return harmonic_mean()
+        else:
+            return kcmScore()
 
     def classify(self, file):
         import json

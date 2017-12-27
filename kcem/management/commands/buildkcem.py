@@ -18,7 +18,7 @@ class Command(BaseCommand):
         def activateKCEM(keywordThreadList):
             ThreadResult = []
             for index, keyword in enumerate(keywordThreadList):
-                ThreadResult.append(k.findParent(keyword))
+                ThreadResult.append(k.buildParent(keyword))
                 if index % 1000 == 0:
                     logging.info("已處理 %d 個單子" % index)
                     self.Collect.insert(ThreadResult)
