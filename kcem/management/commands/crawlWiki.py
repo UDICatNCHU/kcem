@@ -1,5 +1,5 @@
 from django.core.management.base import BaseCommand, CommandError
-from kcem.crawler.crawler import WikiCrawler
+from kcem.crawler import WikiCrawler
 
 class Command(BaseCommand):
     help = 'use this to crawl Wikipedia !'
