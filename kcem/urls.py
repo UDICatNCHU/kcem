@@ -19,4 +19,5 @@ from kcem import views
 
 urlpatterns = [
     url(r'^$', views.kcem, name='kcem'), 
+    url(r'^topn$', views.topn, name='topn'), 
 ]

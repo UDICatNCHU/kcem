@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import jieba, pymongo, numpy, math, pyprind
+import jieba, pymongo, numpy, math
 from collections import defaultdict
 from ngram import NGram
 from itertools import dropwhile
@@ -54,10 +54,11 @@ class WikiKCEM(object):
         if result.count():
             return result[0]
         else:
-            kcemKeyword = self.wikiNgram.find(keyword)
-            if kcemKeyword:
-                result = self.kcem.find({'key':kcemKeyword}, {'_id':False}).limit(1)[0]
-                return {**result, 'similarity':self.kcem.compare(keyword, kcemKeyword)}
+            ngramKeyword = self.wikiNgram.find(keyword)
+            if ngramKeyword:
+                result = self.kcem.find({'key':ngramKeyword}, {'_id':False}).limit(1)
+                if result.count():
+                    return {**(result[0]), 'similarity':self.wikiNgram.compare(keyword, ngramKeyword)}
             return {'key':keyword, 'value':[], 'similarity':0}
 
     def buildParent(self, keyword):
@@ -129,52 +130,17 @@ class WikiKCEM(object):
         else:
             return kcmScore()
 
-    def classify(self, file):
+    def topn(self, context, num=-1):
         import json
-        kcemTable = {}
-        context = ''.join(i['context'] for i in json.load(open(file, 'r')))
-        result = defaultdict(list)
-        # for key in rmsw(context, 'n'):
-        for key in pyprind.prog_bar(list(rmsw(context, 'n'))):
-            rawParent = self.get(key)
-            parent = kcemTable.setdefault(key, rawParent['value'][0][0] if rawParent['value'] and rawParent['key'] == key else None)
-            if parent:
-                result[parent].append(key)
-        result = {k:len(v) for k,v in result.items()}
-        return sorted(result.items(), key=lambda x:-x[1])
+        result = defaultdict(dict)
 
+        for key in rmsw(context, 'n'):
+            parent = self.get(key)
+            if parent['key'] == key and parent['value']:
+                result[parent['value'][0][0]].setdefault('key', key)
+                result[parent['value'][0][0]]['count'] = result[parent['value'][0][0]].setdefault('count', 0) + 1
 
-    def loss(self):
-        import json
-        import numpy as np
-        answer = json.load(open('answer.json', 'r'))
-        power = []
-        for i in np.arange(1.0, 1.5, 0.005):
-            power.append(sum([dict(self.get(term, lambda jiebaCut:i ** len(jiebaCut))['value'])[answer[term]] for term in answer]))
-        print(power)
-        print('1 + lnN')
-        print(sum([dict(self.get(term, lambda jiebaCut:len(jiebaCut) * math.log1p(len(jiebaCut)))['value'])[answer[term]] for term in answer]))
-        print('1 + log10 N')
-        print(sum([dict(self.get(term, lambda jiebaCut:1+math.log(len(jiebaCut), 10))['value'])[answer[term]] for term in answer]))
-        print('1 + log2 N')
-        print(sum([dict(self.get(term, lambda jiebaCut:1+math.log(len(jiebaCut), 2))['value'])[answer[term]] for term in answer]))
-        print('N (1 + logN)')
-        print(sum([dict(self.get(term, lambda jiebaCut: len(jiebaCut)*(1+math.log(len(jiebaCut), 2)))['value'])[answer[term]] for term in answer]))
-        print('1 + NlogN')
-        print(sum([dict(self.get(term, lambda jiebaCut:1+len(jiebaCut) * math.log(len(jiebaCut), 2))['value'])[answer[term]] for term in answer]))
-
-        print('1 + NlogX N')
-        power = []
-        for i in np.arange(1.05, 10, 0.05):
-            power.append(sum([dict(self.get(term, lambda jiebaCut:1+len(jiebaCut)*math.log(len(jiebaCut), i))['value'])[answer[term]] for term in answer]))
-        print(power)
-
-        print('N (1 + logX N)')
-        power = []
-        for i in np.arange(1.05, 10, 0.05):
-            power.append(sum([dict(self.get(term, lambda jiebaCut: len(jiebaCut)*(1+math.log(len(jiebaCut), i)))['value'])[answer[term]] for term in answer]))
-        print(power)
-
+        return sorted(result.items(), key=lambda x:-x[1]['count'])[:num]
 
 if __name__ == '__main__':
     import argparse
@@ -183,7 +149,6 @@ if __name__ == '__main__':
         build kcm model and insert it into mongoDB with command line.    
     ''')
     parser.add_argument('-k', metavar='keyword', help='keyword')
-    parser.add_argument('-t', help='test which benchmark is better')
     parser.add_argument('-c', help='use classfiy mode')
     parser.add_argument('-f', help='file used to classfiy')
     args = parser.parse_args()
@@ -193,7 +158,5 @@ if __name__ == '__main__':
             keyword = input('\nplease input the keyword you want to query:\n')
             keyword = keyword.encode('utf-8').decode('utf-8', errors='ignore')
             print(wiki.get(keyword))
-    if args.t:
-        wiki.loss()
-    if args.c:
-        print(wiki.classify(args.f))
+    elif args.c:
+        print(wiki.topn(args.f))

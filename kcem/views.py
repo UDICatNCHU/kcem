@@ -14,3 +14,14 @@ def kcem(request):
     """
     keyword = request.GET['keyword']
     return JsonResponse(k.get(keyword), safe=False)
+
+def topn(request):
+    if request.POST and 'doc' in request.POST:
+        doc = request.POST.dict()['doc']
+        num = request.GET['num'] if request.GET['num'] else -1
+        try:
+            return JsonResponse(k.topn(doc, num), safe=False)
+        except Exception as e:
+            print(e)
+            return JsonResponse([], safe=False)
+    return JsonResponse([], safe=False)

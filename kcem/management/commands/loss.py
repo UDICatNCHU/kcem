@@ -9,56 +9,37 @@ from kcem.views import kcem as kcemRequest
 class Command(BaseCommand):
     help = 'use this to test kcem!'
     
-    def add_arguments(self, parser):
-        # Positional arguments
-        parser.add_argument(
-            '--kcemMode',
-            default='hybrid',
-            type=str,
-            help='mode of kcem, you can choose one from hybrid, w2v or kcem.',
-        )
-        parser.add_argument(
-            '--ans',
-            default='Ontology_from_google.json',
-            type=str,
-            help="a json file, which we crawled from Google's Ontology",
-        )
-        parser.add_argument(
-            '--output',
-            default='kcem.loss.json',
-            type=str,
-            help='output file of kcem loss.',
-        )
-        parser.add_argument(
-            '--upperbound',
-            default='5',
-            type=int,
-            help='Upper bound of kcm and kem parameters.',
-        )
+    def loss(self):
+        import json
+        import numpy as np
+        answer = json.load(open('answer.json', 'r'))
+        power = []
+        for i in np.arange(1.0, 1.5, 0.005):
+            power.append(sum([dict(self.get(term, lambda jiebaCut:i ** len(jiebaCut))['value'])[answer[term]] for term in answer]))
+        print(power)
+        print('1 + lnN')
+        print(sum([dict(self.get(term, lambda jiebaCut:len(jiebaCut) * math.log1p(len(jiebaCut)))['value'])[answer[term]] for term in answer]))
+        print('1 + log10 N')
+        print(sum([dict(self.get(term, lambda jiebaCut:1+math.log(len(jiebaCut), 10))['value'])[answer[term]] for term in answer]))
+        print('1 + log2 N')
+        print(sum([dict(self.get(term, lambda jiebaCut:1+math.log(len(jiebaCut), 2))['value'])[answer[term]] for term in answer]))
+        print('N (1 + logN)')
+        print(sum([dict(self.get(term, lambda jiebaCut: len(jiebaCut)*(1+math.log(len(jiebaCut), 2)))['value'])[answer[term]] for term in answer]))
+        print('1 + NlogN')
+        print(sum([dict(self.get(term, lambda jiebaCut:1+len(jiebaCut) * math.log(len(jiebaCut), 2))['value'])[answer[term]] for term in answer]))
 
-    def main(self, kcmNum, kemNum):
-        loss = 0
-        total = 0
+        print('1 + NlogX N')
+        power = []
+        for i in np.arange(1.05, 10, 0.05):
+            power.append(sum([dict(self.get(term, lambda jiebaCut:1+len(jiebaCut)*math.log(len(jiebaCut), i))['value'])[answer[term]] for term in answer]))
+        print(power)
 
-        httpReq = HttpRequest()
-        httpReq.method = 'GET'
-        httpReq.GET['lang'] = 'cht'
-        httpReq.GET['kcm'] = kcmNum
-        httpReq.GET['kem'] = kemNum
+        print('N (1 + logX N)')
+        power = []
+        for i in np.arange(1.05, 10, 0.05):
+            power.append(sum([dict(self.get(term, lambda jiebaCut: len(jiebaCut)*(1+math.log(len(jiebaCut), i)))['value'])[answer[term]] for term in answer]))
+        print(power)
 
-        for key, ans in self.data:
-            httpReq.GET['keyword'] = key
-
-            myans = json.loads(kcemRequest(httpReq).getvalue().decode('utf-8'))
-            if myans:
-                myans = criteria(self.mode, myans, key)[0][0]
-                try:
-                    loss += ((1-float(self.model.similarity(myans, ans)))*10)**2
-                    total += 1
-                except Exception as e:
-                    print(e)
-                    continue
-        return loss, total
 
     def handle(self, *args, **options):
         self.model = models.KeyedVectors.load_word2vec_format('med400.model.bin', binary=True)
