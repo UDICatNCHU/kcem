@@ -130,8 +130,7 @@ class WikiKCEM(object):
         else:
             return kcmScore()
 
-    def topn(self, context, num=-1):
-        import json
+    def topn(self, context, num=None):
         result = defaultdict(dict)
 
         for key in rmsw(context, 'n'):
@@ -140,6 +139,17 @@ class WikiKCEM(object):
                 if key not in result[parent['value'][0][0]].setdefault('key', []):
                     result[parent['value'][0][0]]['key'].append(key)
                 result[parent['value'][0][0]]['count'] = result[parent['value'][0][0]].setdefault('count', 0) + 1
+        return sorted(result.items(), key=lambda x:-x[1]['count'])[:num]
+
+    def countertopn(self, wordcount, num=None):
+        result = defaultdict(dict)
+
+        for key, count in wordcount.items():
+            parent = self.get(key)
+            if parent['key'] == key and parent['value']:
+                if key not in result[parent['value'][0][0]].setdefault('key', []):
+                    result[parent['value'][0][0]]['key'].append(key)
+                result[parent['value'][0][0]]['count'] = result[parent['value'][0][0]].setdefault('count', 0) + count
         return sorted(result.items(), key=lambda x:-x[1]['count'])[:num]
 
 if __name__ == '__main__':
