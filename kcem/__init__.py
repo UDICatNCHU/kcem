@@ -137,9 +137,9 @@ class WikiKCEM(object):
         for key in rmsw(context, 'n'):
             parent = self.get(key)
             if parent['key'] == key and parent['value']:
-                result[parent['value'][0][0]].setdefault('key', key)
+                if key not in result[parent['value'][0][0]].setdefault('key', []):
+                    result[parent['value'][0][0]]['key'].append(key)
                 result[parent['value'][0][0]]['count'] = result[parent['value'][0][0]].setdefault('count', 0) + 1
-
         return sorted(result.items(), key=lambda x:-x[1]['count'])[:num]
 
 if __name__ == '__main__':

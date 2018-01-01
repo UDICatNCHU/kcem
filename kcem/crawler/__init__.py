@@ -82,7 +82,7 @@ class WikiCrawler(object):
             soup = BeautifulSoup(res, 'lxml')
     
             def push_2_stack(tradText):
-                if tradText not in self.visited and True not in {i in tradText for i in IGNORELIST}:
+                if tradText not in self.visited and True not in {i in tradText.lower() for i in IGNORELIST}:
                     self.stack.append(tradText)
     
             def node():
@@ -121,7 +121,7 @@ class WikiCrawler(object):
                         disambiguationCandidates = soup('#參見, #参见').parent().prev_all().items()
                     else:
                         disambiguationCandidates = soup('#mw-content-text a').items()
-                    disambiguationCandidates = {pq(j).text() for i in disambiguationCandidates for j in i('a').filter(lambda x: pq(this).attr('href') and pq(this).text() and '/wiki/' in pq(this).attr('href') and ':' not in pq(this).attr('href') and pq(this).text() not in IGNORELIST)}
+                    disambiguationCandidates = {pq(j).text() for i in disambiguationCandidates for j in i('a').filter(lambda x: pq(this).attr('href') and pq(this).text() and '/wiki/' in pq(this).attr('href') and ':' not in pq(this).attr('href') and pq(this).text().lower() not in IGNORELIST)}
                     for candidate in disambiguationCandidates:
                         disAmbResult['leafNode'].append(candidate)
                     self.Collect.insert(disAmbResult)
