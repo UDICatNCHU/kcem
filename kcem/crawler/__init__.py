@@ -261,6 +261,7 @@ class WikiCrawler(object):
             insertList.append(dict({'key':key}, **value))
         self.Collect.remove({})
         self.Collect.insert(insertList)
+        self.Collect.remove({'key':'分類'})
         self.Collect.create_index([("key", pymongo.HASHED)])
 
         logging.info("merge done")
