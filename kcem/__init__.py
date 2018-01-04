@@ -2,7 +2,7 @@
 import jieba, pymongo, numpy, math
 from collections import defaultdict
 from ngram import NGram
-from itertools import dropwhile
+from itertools import dropwhile, chain
 from functools import reduce
 from udicOpenData.stopwords import rmsw
 from udic_nlp_API.settings import W2VMODEL
@@ -21,6 +21,7 @@ class WikiKCEM(object):
         
         self.model = W2VMODEL
         self.wikiNgram = NGram((i['key'] for i in self.reverseCollect.find({}, {'key':1, '_id':False})))
+        self.WikiEntitySet = set(chain(*[ i['leafNode'] for i in self.Collect.find({"leafNode":{"$exists": True}})]))
             
     @staticmethod
     def findPath(keyword):
@@ -140,10 +141,12 @@ class WikiKCEM(object):
                 result[parent['value'][0][0]]['count'] = result[parent['value'][0][0]].setdefault('count', 0) + 1
         return sorted(result.items(), key=lambda x:-x[1]['count'])[:num]
 
-    def countertopn(self, wordcount, num=None):
+    def countertopn(self, wordcount, num=None, EntityOnly=False):
         result = defaultdict(dict)
 
         for key, count in wordcount.items():
+            if EntityOnly and key not in self.WikiEntitySet:
+                continue
             parent = self.get(key)
             if parent['key'] == key and parent['value']:
                 if key not in result[parent['value'][0][0]].setdefault('key', []):
