@@ -31,8 +31,9 @@ def countertopn(request):
     if request.POST and 'doc' in request.POST:
         doc = json.loads(request.POST.dict()['doc'])
         num = int(request.GET['num']) if 'num' in request.GET else None
+        EntityOnly = True if 'EntityOnly' in request.GET else False
         try:
-            return JsonResponse(k.countertopn(doc, num), safe=False)
+            return JsonResponse(k.countertopn(doc, num, EntityOnly), safe=False)
         except Exception as e:
             print(e)
             return JsonResponse([], safe=False)
