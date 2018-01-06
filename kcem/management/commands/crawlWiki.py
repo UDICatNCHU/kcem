@@ -14,6 +14,7 @@ class Command(BaseCommand):
         if options['crawl']:
             wiki.CrawlFromDumpData()
             wiki.crawl('頁面分類')
+            wiki.dfs('全部消歧義頁面', disambiguation=True)
             wiki.crawl('日本動畫師')
             wiki.crawl('特色級時間條目')
             # wiki.crawl('中式麵條')

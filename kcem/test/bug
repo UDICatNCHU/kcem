@@ -126,3 +126,5 @@ shinee
 
 > db.wikiReverse.find({key:'貓'}) output is : 咪
 { "_id" : ObjectId("5a4af10216ec79008a8fc9ab"), "key" : "貓", "ParentOfLeafNode" : [ "寵物", "咪咪", "貓屬", "貓科", "喵喵", "包含規範控制信息的維基百科條目", "貓眼", "咪", "稱念寺", "貓妖", "入侵哺乳動物種", "貓", "cat" ], "parentNode" : [ "寵物", "都市動物", "貓屬" ] }
+
+wto

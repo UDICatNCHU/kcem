@@ -149,10 +149,17 @@ class WikiKCEM(object):
                 continue
             parent = self.get(key)
             if parent['key'] == key and parent['value']:
-                if key not in result[parent['value'][0][0]].setdefault('key', []):
-                    result[parent['value'][0][0]]['key'].append(key)
+                if key not in result[parent['value'][0][0]].setdefault('key', {}):
+                    result[parent['value'][0][0]]['key'][key] = count
                 result[parent['value'][0][0]]['count'] = result[parent['value'][0][0]].setdefault('count', 0) + count
         return sorted(result.items(), key=lambda x:-x[1]['count'])[:num]
+
+    def child(self, keyword):
+        result = self.Collect.find({'key':keyword}, {'leafNode':1, '_id':False}).limit(1)
+        if result.count():
+            return result[0]
+        else:
+            return {}
 
 if __name__ == '__main__':
     import argparse

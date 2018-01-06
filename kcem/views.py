@@ -16,6 +16,11 @@ def kcem(request):
     keyword = request.GET['keyword']
     return JsonResponse(k.get(keyword), safe=False)
 
+@queryString_required(['keyword'])
+def child(request):
+    keyword = request.GET['keyword']
+    return JsonResponse(k.child(keyword), safe=False)
+
 def topn(request):
     if request.POST and 'doc' in request.POST:
         doc = request.POST.dict()['doc']
