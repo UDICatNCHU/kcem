@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import requests, os.path, threading, multiprocessing, pymongo, logging, sys, subprocess, json_lines, os, urllib
+import requests, os.path, threading, multiprocessing, pymongo, logging, sys, subprocess, json_lines, os
 from bs4 import BeautifulSoup
 from collections import defaultdict
 from opencc import OpenCC
@@ -7,6 +7,7 @@ from pyquery import PyQuery
 from kcem.ignorelist import IGNORELIST
 from pyquery import PyQuery as pq
 from udic_nlp_API.settings_database import uri
+from urllib import parse
 
 # develop = True
 develop = False
@@ -60,8 +61,12 @@ class WikiCrawler(object):
     @staticmethod
     def genUrl(category, disambiguation=False):
         if disambiguation:
-            return 'https://zh.wikipedia.org/zh-tw/' + urllib.parse.quote(category)
-        return 'https://zh.wikipedia.org/zh-tw/Category:' + urllib.parse.quote(category)
+            return 'https://zh.wikipedia.org/zh-tw/' + parse.quote(category)
+        return 'https://zh.wikipedia.org/zh-tw/Category:' + parse.quote(category)
+
+    @staticmethod
+    def notInIgnore(lowerText):
+        return True not in {i in lowerText for i in IGNORELIST}
 
     def dfs(self, parent=None, disambiguation=False):
         try:
@@ -82,7 +87,7 @@ class WikiCrawler(object):
             soup = BeautifulSoup(res, 'lxml')
     
             def push_2_stack(tradText):
-                if tradText not in self.visited and True not in {i in tradText.lower() for i in IGNORELIST}:
+                if tradText not in self.visited and self.notInIgnore(tradText.lower()):
                     self.stack.append(tradText)
     
             def node():
@@ -102,7 +107,7 @@ class WikiCrawler(object):
                     
     
                 for childNode in soup.select('.CategoryTreeLabelCategory'):
-                    tradText = childNode.text
+                    tradText = parse.unquote(childNode['href'].split(':')[-1])
                     
                     # build dictionary
                     result[parent].setdefault('node', []).append(tradText)
@@ -121,7 +126,7 @@ class WikiCrawler(object):
                         disambiguationCandidates = soup('#參見, #参见').parent().prev_all().items()
                     else:
                         disambiguationCandidates = soup('#mw-content-text a').items()
-                    disambiguationCandidates = {pq(j).text() for i in disambiguationCandidates for j in i('a').filter(lambda x: pq(this).attr('href') and pq(this).text() and '/wiki/' in pq(this).attr('href') and ':' not in pq(this).attr('href') and pq(this).text().lower() not in IGNORELIST)}
+                    disambiguationCandidates = {parse.unquote(pq(j).attr('href').split('/')[-1]) for i in disambiguationCandidates for j in i('a').filter(lambda x: pq(this).attr('href') and pq(this).text() and '/wiki/' in pq(this).attr('href') and ':' not in pq(this).attr('href') and self.notInIgnore(pq(this).text().lower()))}
                     for candidate in disambiguationCandidates:
                         disAmbResult['leafNode'].append(candidate)
                     self.Collect.insert(disAmbResult)
@@ -139,13 +144,13 @@ class WikiCrawler(object):
                     # 底部就不用重複加
                     notyet = True
                     for child in current:
-                        childText = child.text
-                        print(childText)
-                        if notyet and childText in ('下一頁', '下一页') and child.has_attr('href'):
+                        childText = parse.unquote(child['href'].split('/')[-1])
+                        if self.notInIgnore(child.text.lower()) == False:continue
+                        if notyet and child.text in ('下一頁', '下一页') and child.has_attr('href'):
                             notyet = False
-                            print(self.wikiBaseUrl + child['href'])
                             leafNodeList.append(BeautifulSoup(requests.get(self.wikiBaseUrl + child['href']).text, 'lxml').select('#mw-pages a'))
-                        elif childText not in ['下一頁', '上一頁', '下一页', '上一页']:
+                        elif child.text not in ['下一頁', '上一頁', '下一页', '上一页']:
+                            print(childText)
                             result[parent].setdefault('leafNode', []).append(childText)
 
                             if disambiguation:
