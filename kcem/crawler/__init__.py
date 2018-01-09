@@ -222,7 +222,7 @@ class WikiCrawler(object):
             grepErrorFromLog()
 
             # 把mongo所有點都看過，如果有一個名詞出現在node陣列中，但是在wiki裏面卻查不到該名詞，代表dfs因為不知名原因沒有繼續鑽進去爬，所以現在挑錯就把他挑出來，繼續爬
-            for index, child in enumerate(self.Collect.find({}, {'_id':False})):
+            for index, child in enumerate(self.Collect.find({}, {'_id':False}, no_cursor_timeout=True)):
                 self.visited.add(child['key'])
                 if 'node' in child:
                     for node in child["node"]:

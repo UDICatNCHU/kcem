@@ -50,15 +50,41 @@ class WikiKCEM(object):
     def get(self, keyword):
         # if not in wiki Category
         # use wiki Ngram to search
+
+        def disambiguate(ambKeyword, cursor):
+            value = cursor[0].get('value', [])
+            value = [v for v in value if '消歧義' not in v[0]]
+
+            # 如果value[0][0], 也就是kcem第一個回傳的concept跟你說是消歧義
+            # 就找他child的parent
+            if not value:
+                # Because cursor would has a key 全部消歧義頁面 or X字消歧義
+                # these are all ambiguous keyword
+                # so need some post-processing
+                # that's the reason why this api exists !
+                MaxProbability, BestCursor, bestChild = 0, None, ''
+
+                for child in self.child(ambKeyword)['leafNode']:
+                    tmp = self.kcem.find({'key':child}, {'_id':False}).limit(1)
+                    if tmp.count() and tmp[0]['value'][0][1] > MaxProbability and tmp[0]['value'][0][0] != ambKeyword:
+                        MaxProbability = tmp[0]['value'][0][1]
+                        BestCursor = tmp
+                        bestChild = child
+                if not BestCursor:
+                    return {'key':ambKeyword, 'value':value, 'similarity':1}
+                return {**(BestCursor[0]), 'similarity':self.wikiNgram.compare(ambKeyword, bestChild)}
+            else:
+                return {'key':ambKeyword, 'value':value, 'similarity':1}
+
         result = self.kcem.find({'key':keyword}, {'_id':False}).limit(1)
         if result.count():
-            return result[0]
+            return disambiguate(keyword, result)
         else:
             ngramKeyword = self.wikiNgram.find(keyword)
             if ngramKeyword:
                 result = self.kcem.find({'key':ngramKeyword}, {'_id':False}).limit(1)
                 if result.count():
-                    return {**(result[0]), 'similarity':self.wikiNgram.compare(keyword, ngramKeyword)}
+                    return {**(disambiguate(ngramKeyword, result)), 'similarity':self.wikiNgram.compare(keyword, ngramKeyword)}
             return {'key':keyword, 'value':[], 'similarity':0}
 
     def buildParent(self, keyword):

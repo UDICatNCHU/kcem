@@ -22,5 +22,5 @@ urlpatterns = [
     url(r'^topn$', views.topn, name='topn'), 
     url(r'^countertopn$', views.countertopn, name='countertopn'), 
     url(r'^child$', views.child, name='child'), 
-    url(r'^kcemDisambiguous$', views.kcemDisambiguous, name='kcemDisambiguous'), 
+    url(r'^kcemContext$', views.kcemContext, name='kcemContext'), 
 ]
