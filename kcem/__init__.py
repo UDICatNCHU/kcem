@@ -55,7 +55,7 @@ class WikiKCEM(object):
             value = cursor[0].get('value', [])
             value = [v for v in value if '消歧義' not in v[0]]
 
-            # 如果value[0][0], 也就是kcem第一個回傳的concept跟你說是消歧義
+            # 如果value[0][0], 也就是kcem回傳唯一一個的concept跟你說是消歧義
             # 就找他child的parent
             if not value:
                 # Because cursor would has a key 全部消歧義頁面 or X字消歧義
@@ -66,14 +66,26 @@ class WikiKCEM(object):
 
                 for child in self.child(ambKeyword)['leafNode']:
                     tmp = self.kcem.find({'key':child}, {'_id':False}).limit(1)
-                    if tmp.count() and tmp[0]['value'][0][1] > MaxProbability and tmp[0]['value'][0][0] != ambKeyword:
-                        MaxProbability = tmp[0]['value'][0][1]
-                        BestCursor = tmp
-                        bestChild = child
+                    if tmp.count():
+                        tmp = tmp[0]
+                    else:
+                        continue
+                    for hypernymOfChild in tmp['value']:
+                        if hypernymOfChild[1] > MaxProbability and hypernymOfChild[0] != ambKeyword and '消歧義' not in hypernymOfChild[0]:
+                            MaxProbability = hypernymOfChild[1]
+                            BestCursor = tmp
+                            bestChild = child
+
+                            # 因為kcem的value已經排序過了
+                            # 所以如果一遇到符合的一定是possibility最高的
+                            # 找到就可以直接break了
+                            break
                 if not BestCursor:
+                    # 找遍child的hypernym還是都只剩消歧義那就只能放棄了
                     return {'key':ambKeyword, 'value':value, 'similarity':1}
-                return {**(BestCursor[0]), 'similarity':self.wikiNgram.compare(ambKeyword, bestChild)}
+                return {**(BestCursor), 'similarity':self.wikiNgram.compare(ambKeyword, bestChild)}
             else:
+                # 去掉消歧義還是有hypernym的就直接回傳
                 return {'key':ambKeyword, 'value':value, 'similarity':1}
 
         result = self.kcem.find({'key':keyword}, {'_id':False}).limit(1)
@@ -84,7 +96,8 @@ class WikiKCEM(object):
             if ngramKeyword:
                 result = self.kcem.find({'key':ngramKeyword}, {'_id':False}).limit(1)
                 if result.count():
-                    return {**(disambiguate(ngramKeyword, result)), 'similarity':self.wikiNgram.compare(keyword, ngramKeyword)}
+                    tmpResult = {**(disambiguate(ngramKeyword, result))}
+                    return {**tmpResult, 'similarity':self.wikiNgram.compare(tmpResult['key'], keyword)}
             return {'key':keyword, 'value':[], 'similarity':0}
 
     def buildParent(self, keyword):
