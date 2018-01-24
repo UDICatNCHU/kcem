@@ -19,8 +19,6 @@ from kcem import views
 
 urlpatterns = [
     url(r'^$', views.kcem, name='kcem'), 
-    url(r'^topn$', views.topn, name='topn'), 
-    url(r'^countertopn$', views.countertopn, name='countertopn'), 
     url(r'^child$', views.child, name='child'), 
-    url(r'^kcemContext$', views.kcemContext, name='kcemContext'), 
+    url(r'^counterKCEM$', views.counterKCEM, name='counterKCEM')
 ]

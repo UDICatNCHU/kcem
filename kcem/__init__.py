@@ -169,18 +169,9 @@ class WikiKCEM(object):
         else:
             return kcmScore()
 
-    def topn(self, context, num=None):
-        result = defaultdict(dict)
-
-        for key in rmsw(context, 'n'):
-            parent = self.get(key)
-            if parent['key'] == key and parent['value']:
-                if key not in result[parent['value'][0][0]].setdefault('key', []):
-                    result[parent['value'][0][0]]['key'].append(key)
-                result[parent['value'][0][0]]['count'] = result[parent['value'][0][0]].setdefault('count', 0) + 1
-        return sorted(result.items(), key=lambda x:-x[1]['count'])[:num]
-
-    def countertopn(self, wordcount, num=None, EntityOnly=False):
+    def counterKCEM(self, wordcount, EntityOnly=False):
+        # 接受的參數是一個counter
+        # 把counter裏面所有的字都用kcem轉換
         result = defaultdict(dict)
 
         for key, count in wordcount.items():
@@ -191,7 +182,7 @@ class WikiKCEM(object):
                 if key not in result[parent['value'][0][0]].setdefault('key', {}):
                     result[parent['value'][0][0]]['key'][key] = count
                 result[parent['value'][0][0]]['count'] = result[parent['value'][0][0]].setdefault('count', 0) + count
-        return sorted(result.items(), key=lambda x:-x[1]['count'])[:num]
+        return sorted(result.items(), key=lambda x:-x[1]['count'])
 
     def child(self, keyword):
         result = self.Collect.find({'key':keyword}, {'leafNode':1, '_id':False}).limit(1)
