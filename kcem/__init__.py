@@ -162,7 +162,9 @@ class WikiKCEM(object):
             else:
                 return 0
 
-        # default mode
+        # 如果查詢的字不在word2vec裏面，那harmonic mean公式算出來都會是0
+        # 這種情況其實還不少，這樣會導致整個harmonic mean都沒用
+        # 所以這種情況就用kcm分數當作依據
         if keyword in W2VMODEL.wv.vocab:
             return harmonic_mean()
         else:
