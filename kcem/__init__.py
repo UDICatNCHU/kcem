@@ -64,7 +64,7 @@ class WikiKCEM(object):
                 # that's the reason why this api exists !
                 MaxProbability, BestCursor, bestChild = 0, None, ''
 
-                for child in self.child(ambKeyword)['leafNode']:
+                for child in self.child(ambKeyword).get('leafNode', []):
                     tmp = self.kcem.find({'key':child}, {'_id':False}).limit(1)
                     if tmp.count():
                         tmp = tmp[0]
@@ -163,25 +163,26 @@ class WikiKCEM(object):
                 return 0
 
         # default mode
-        # return (similarityScore() + kcmScore()) / 1.17 ** len(jiebaCut)
         if keyword in W2VMODEL.wv.vocab:
             return harmonic_mean()
         else:
             return kcmScore()
 
-    def counterKCEM(self, wordcount, EntityOnly=False):
+    def counterKCEM(self, wordcount, EntityOnly=False, strict=False):
         # 接受的參數是一個counter
         # 把counter裏面所有的字都用kcem轉換
         result = defaultdict(dict)
-
         for key, count in wordcount.items():
             if EntityOnly and key not in self.WikiEntitySet:
                 continue
             parent = self.get(key)
-            if parent['key'] == key and parent['value']:
-                if key not in result[parent['value'][0][0]].setdefault('key', {}):
-                    result[parent['value'][0][0]]['key'][key] = count
-                result[parent['value'][0][0]]['count'] = result[parent['value'][0][0]].setdefault('count', 0) + count
+            if not parent['value'] or (strict and similarity == 1):
+                continue
+
+            hypernyn = parent['value'][0][0]
+            if key not in result[hypernyn].setdefault('key', {}):
+                result[hypernyn]['key'][key] = count
+            result[hypernyn]['count'] = result[hypernyn].setdefault('count', 0) + count
         return sorted(result.items(), key=lambda x:-x[1]['count'])
 
     def child(self, keyword):

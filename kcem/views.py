@@ -44,9 +44,10 @@ def counterKCEM(request):
     if request.POST and 'counter' in request.POST:
         counter = json.loads(request.POST.dict()['counter'])
         EntityOnly = True if 'EntityOnly' in request.GET else False
+        strict = True if 'strict' in request.GET else False
         try:
-            return JsonResponse(k.counterKCEM(counter, EntityOnly), safe=False)
+            return JsonResponse(k.counterKCEM(counter, EntityOnly, strict), safe=False)
         except Exception as e:
-            print(e)
+            raise e
             return JsonResponse([], safe=False)
     return JsonResponse([], safe=False)
