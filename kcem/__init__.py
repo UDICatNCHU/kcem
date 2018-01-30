@@ -78,8 +78,8 @@ class WikiKCEM(object):
                             break
                 if not BestCursor:
                     # 找遍child的hypernym還是都只剩消歧義那就只能放棄了
-                    return {'key':keyword, 'value':value, 'similarity':1}
-                return {**(BestCursor), 'similarity':self.wikiNgram.compare(keyword, bestChild)}
+                    return {'key':keyword, 'value':value, 'similarity':1, 'origin':keyword}
+                return {**(BestCursor), 'similarity':self.wikiNgram.compare(keyword, bestChild), 'origin':keyword}
 
             def useDocVec2disambiguate_child():
                 # use docvec to do disambiguate !
@@ -94,7 +94,7 @@ class WikiKCEM(object):
                         MaxSimilarity = similarity
 
                 result = self.kcem.find({'key':bestChild}, {'_id':False}).limit(1)
-                return {**(result[0]), 'similarity':self.wikiNgram.compare(keyword, bestChild)}
+                return {**(result[0]), 'similarity':self.wikiNgram.compare(keyword, bestChild), 'origin':keyword}
 
             def useDocVec2disambiguate_parent(value):
                 # use docvec to do disambiguate !
@@ -118,7 +118,7 @@ class WikiKCEM(object):
                         except Exception as e:
                             continue
                     hypernymSimilarity[hypernym] = hypernymSimilarity[hypernym] / count
-                return {'key':keyword, 'value':sorted(hypernymSimilarity.items(), key=lambda x:-x[0]), 'similarity':1}
+                return {'key':keyword, 'value':sorted(hypernymSimilarity.items(), key=lambda x:-x[0]), 'similarity':1, 'origin':keyword}
 
             value = cursor[0].get('value', [])
             value = [v for v in value if '消歧義' not in v[0]]
@@ -135,7 +135,7 @@ class WikiKCEM(object):
                     return useDocVec2disambiguate_parent()
                 else:
                     # 去掉消歧義還是有hypernym的就直接回傳
-                    return {'key':keyword, 'value':value, 'similarity':1}
+                    return {'key':keyword, 'value':value, 'similarity':1, 'origin':keyword}
 
         cursor = self.kcem.find({'key':keyword}, {'_id':False}).limit(1)
         if cursor.count():
@@ -146,8 +146,9 @@ class WikiKCEM(object):
                 cursor = self.kcem.find({'key':ngramKeyword}, {'_id':False}).limit(1)
                 if cursor.count():
                     tmpResult = {**(disambiguate(cursor))}
-                    return {**tmpResult, 'similarity':self.wikiNgram.compare(tmpResult['key'], keyword)}
-            return {'key':keyword, 'value':[], 'similarity':0}
+                    return {**tmpResult, 'similarity':self.wikiNgram.compare(tmpResult['key'], keyword), 'origin':keyword}
+            return {'key':keyword, 'value':[], 'similarity':0, 'origin':keyword}
+
 
     def buildParent(self, keyword):
         def toxinomic_score(keyword, parent):
