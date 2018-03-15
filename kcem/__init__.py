@@ -10,6 +10,7 @@ from KCM.__main__ import KCM
 from kem import KEM
 from udic_nlp_API.settings_database import uri
 from scipy import spatial
+from kcem.ignorelist import IGNORELIST
 
 class WikiKCEM(object):
     """docstring for WikiKCEM"""
@@ -149,44 +150,55 @@ class WikiKCEM(object):
                     return {**tmpResult, 'similarity':self.wikiNgram.compare(tmpResult['key'], keyword), 'origin':keyword}
             return {'key':keyword, 'value':[], 'similarity':0, 'origin':keyword}
 
+    def buildParent (self, keyword):
+        def buildCandidate(cursor):
+            def toxinomic_score(keyword, parent):
+                jiebaCut = jieba.lcut(parent, cut_all=True)
+                def similarityScore():
+                    def getSimilarity(keyword, term):
+                        try:
+                            similarity = self.model.similarity(keyword, term)
+                            sign = 1 if similarity > 0 else -1
+                            return sign * (similarity ** 2)
+                        except KeyError as e:
+                            return 0
+                    scoreList = [getSimilarity(keyword, term) for term in jiebaCut]
+                    return reduce(lambda x, y: x+y, scoreList)
 
-    def buildParent(self, keyword):
-        def toxinomic_score(keyword, parent):
-            jiebaCut = jieba.lcut(parent, cut_all=True)
-            def similarityScore():
-                def getSimilarity(keyword, term):
-                    try:
-                        similarity = self.model.similarity(keyword, term)
-                        sign = 1 if similarity > 0 else -1
-                        return sign * (similarity ** 2)
-                    except KeyError as e:
+                def kcmScore():
+                    keywordKcm = dict(self.kcmObject.get(keyword, -1).get('value', []))
+                    if keywordKcm:
+                        keywordKcmTotal = sum(keywordKcm.values())
+                        return reduce(lambda x,y:x+y, [(keywordKcm.get(term, 0) / keywordKcmTotal)**2 for term in jiebaCut])
+                    else:
                         return 0
-                scoreList = [getSimilarity(keyword, term) for term in jiebaCut]
-                return reduce(lambda x, y: x+y, scoreList)
 
-            def kcmScore():
-                keywordKcm = dict(self.kcmObject.get(keyword, -1).get('value', []))
-                if keywordKcm:
-                    keywordKcmTotal = sum(keywordKcm.values())
-                    return reduce(lambda x,y:x+y, [(keywordKcm.get(term, 0) / keywordKcmTotal)**2 for term in jiebaCut])
+                def harmonic_mean():
+                    cosine, kcm = similarityScore() , kcmScore()
+                    if cosine and kcm:
+                        return 2 * (cosine/len(jiebaCut) * kcm/len(jiebaCut)) / (cosine/len(jiebaCut) + kcm/len(jiebaCut))
+                    else:
+                        return 0
+
+                # 如果查詢的字不在word2vec裏面，那harmonic mean公式算出來都會是0
+                # 這種情況其實還不少，這樣會導致整個harmonic mean都沒用
+                # 所以這種情況就用kcm分數當作依據
+                if keyword in W2VMODEL.wv.vocab:
+                    return harmonic_mean()
                 else:
-                    return 0
+                    return kcmScore()
 
-            def harmonic_mean():
-                cosine, kcm = similarityScore() , kcmScore()
-                if cosine and kcm:
-                    return 2 * (cosine/len(jiebaCut) * kcm/len(jiebaCut)) / (cosine/len(jiebaCut) + kcm/len(jiebaCut))
-                else:
-                    return 0
+            parents = cursor[0].get('ParentOfLeafNode', []) + cursor[0].get('parentNode', [])
+            candidate = {parent: toxinomic_score(keyword, parent) for parent in parents if parent not in IGNORELIST}
 
-            # 如果查詢的字不在word2vec裏面，那harmonic mean公式算出來都會是0
-            # 這種情況其實還不少，這樣會導致整個harmonic mean都沒用
-            # 所以這種情況就用kcm分數當作依據
-            if keyword in W2VMODEL.wv.vocab:
-                return harmonic_mean()
-            else:
-                return kcmScore()
-        
+            # 如果parent有多種選擇， 那就把跟keyword一模一樣的parent給剔除
+            # 但是如果parent只有唯一的選擇而且跟關鍵字 一樣那就只能選他了
+            if len(candidate) > 1 and keyword in candidate:
+                del candidate[keyword]
+            if len(candidate) == 0:
+                print(candidate, keyword)
+            return candidate
+
         def minMaxNormalization(candidate):
             # Use Min-max normalization
             # 因為最後輸出的值為機率，而機率不能是負的
@@ -207,15 +219,6 @@ class WikiKCEM(object):
             if summation:
                 for k, v in candidate.items():
                     candidate[k] = v / summation
-
-        def buildCandidate(cursor):
-            parents = cursor[0].get('ParentOfLeafNode', []) + cursor[0].get('parentNode', [])
-            candidate = {parent: toxinomic_score(keyword, parent) for parent in parents}
-
-            # 如果parent有多種選擇， 那就把跟keyword一模一樣的parent給剔除
-            # 但是如果parent只有唯一的選擇而且跟關鍵字 一樣那就只能選他了
-            if len(candidate) > 1 and keyword in candidate:
-                del candidate[keyword]
             return candidate
 
         cursor = self.reverseCollect.find({'key':keyword}, {'_id':False}).limit(1)
