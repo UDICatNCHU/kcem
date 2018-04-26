@@ -6,7 +6,7 @@ from itertools import dropwhile, chain
 from functools import reduce
 from udicOpenData.stopwords import rmsw
 from udic_nlp_API.settings import W2VMODEL
-from KCM.__main__ import KCM
+from kcm import KCM
 from kem import KEM
 from udic_nlp_API.settings_database import uri
 from scipy import spatial
@@ -15,7 +15,7 @@ from kcem.ignorelist import IGNORELIST
 class WikiKCEM(object):
     """docstring for WikiKCEM"""
     def __init__(self, uri=None):
-        self.kcmObject = KCM('cht', 'cht', uri=uri)
+        self.kcmObject = KCM(lang='zh', uri=uri)
         self.kemObject = KEM(uri)
 
         self.client = pymongo.MongoClient(uri)['nlp']
