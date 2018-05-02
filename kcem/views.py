@@ -5,7 +5,9 @@ from kcem import WikiKCEM
 from udic_nlp_API.settings_database import uri
 import json
 
-k = WikiKCEM(uri)
+multilanguage_model = {
+    'zh': WikiKCEM('zh', uri)
+}
 # Create your views here.
 @queryString_required(['keyword'])
 def kcem(request):
@@ -15,8 +17,8 @@ def kcem(request):
     """
     keyword = request.GET['keyword']
     if request.POST and 'docvec' in request.POST:
-        return JsonResponse(k.get(keyword, request.POST['docvec']), safe=False)
-    return JsonResponse(k.get(keyword), safe=False)
+        return JsonResponse(multilanguage_model['zh'].get(keyword, request.POST['docvec']), safe=False)
+    return JsonResponse(multilanguage_model['zh'].get(keyword), safe=False)
 
 @queryString_required(['keywords'])
 def kcemList(request):
@@ -25,9 +27,9 @@ def kcemList(request):
     '''
     keywords = request.GET['keywords'].split()
     if request.POST and 'docvec' in request.POST:
-        return JsonResponse(k.getList(keywords, request.POST['docvec']), safe=False)
-    return JsonResponse(k.getList(keywords), safe=False)    
+        return JsonResponse(multilanguage_model['zh'].getList(keywords, request.POST['docvec']), safe=False)
+    return JsonResponse(multilanguage_model['zh'].getList(keywords), safe=False)    
 
 def child(request):
     keyword = request.GET['keyword']
-    return JsonResponse(k.child(keyword), safe=False)
+    return JsonResponse(multilanguage_model['zh'].child(keyword), safe=False)

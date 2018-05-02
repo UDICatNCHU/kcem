@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
-import jieba, pymongo, numpy, math
+import jieba, pymongo, numpy, math, gensim
 from collections import defaultdict
 from ngram import NGram
 from itertools import dropwhile, chain
 from functools import reduce
-from udicOpenData.stopwords import rmsw
-from udic_nlp_API.settings import W2VMODEL
 from kcm import KCM
 from kem import KEM
 from udic_nlp_API.settings_database import uri
@@ -14,16 +12,16 @@ from kcem.ignorelist import IGNORELIST
 
 class WikiKCEM(object):
     """docstring for WikiKCEM"""
-    def __init__(self, uri=None):
-        self.kcmObject = KCM(lang='zh', uri=uri)
-        self.kemObject = KEM(uri)
+    def __init__(self, lang, uri=None):
+        self.kcmObject = KCM(lang=lang, uri=uri)
+        self.kemObject = KEM(lang=lang, uri=uri)
 
         self.client = pymongo.MongoClient(uri)['nlp']
         self.Collect = self.client['wiki']
         self.reverseCollect = self.client['wikiReverse']
         self.kcem = self.client['kcem']
         
-        self.model = W2VMODEL
+        self.model = gensim.models.KeyedVectors.load_word2vec_format('med400.model.bin.{}'.format(lang), binary=True)
         self.wikiNgram = NGram((i['key'] for i in self.reverseCollect.find({}, {'key':1, '_id':False})))
         self.WikiEntitySet = set(chain(*[ i['leafNode'] for i in self.Collect.find({"leafNode":{"$exists": True}})]))
 

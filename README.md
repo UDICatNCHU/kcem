@@ -67,8 +67,6 @@ usage: manage.py loss [--kcemMode KCEMMODE] [--ans ANS] [--output OUTPUT]
 
 `kcem` is a django-app, so depends on django project.
 
-`kcem` 是一般的django插件，所以必須依存於django專案
-
 ## Built With
 
 - simplejson
