@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 from django.http import JsonResponse
 from djangoApiDec.djangoApiDec import queryString_required
-from kcem import WikiKCEM
+from kcem.apps import KCEM
 from udic_nlp_API.settings_database import uri
 import json
 
 multilanguage_model = {
-    'zh': WikiKCEM('zh', uri)
+    'zh': KCEM('zh', uri)
 }
 # Create your views here.
 @queryString_required(['keyword'])
