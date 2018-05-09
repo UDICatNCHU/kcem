@@ -16,8 +16,7 @@ class Category(models.Model):
     cat_pages = models.IntegerField()
     cat_subcats = models.IntegerField()
     cat_files = models.IntegerField()
-
-    lang = models.CharField(max_length=4, blank=True, null=True)
+    
     class Meta:
         managed = False
         db_table = 'category'
@@ -31,8 +30,7 @@ class Categorylinks(models.Model):
     cl_sortkey_prefix = models.CharField(max_length=255)
     cl_collation = models.CharField(max_length=32)
     cl_type = models.CharField(max_length=6)
-
-    lang = models.CharField(max_length=4, blank=True, null=True)
+    
     class Meta:
         managed = False
         db_table = 'categorylinks'
@@ -54,8 +52,7 @@ class Page(models.Model):
     page_len = models.IntegerField()
     page_content_model = models.CharField(max_length=32, blank=True, null=True)
     page_lang = models.CharField(max_length=35, blank=True, null=True)
-
-    lang = models.CharField(max_length=4, blank=True, null=True)
+    
     class Meta:
         managed = False
         db_table = 'page'
@@ -67,8 +64,7 @@ class Pagelinks(models.Model):
     pl_namespace = models.IntegerField()
     pl_title = models.CharField(max_length=255)
     pl_from_namespace = models.IntegerField()
-
-    lang = models.CharField(max_length=4, blank=True, null=True)
+    
     class Meta:
         managed = False
         db_table = 'pagelinks'
@@ -81,8 +77,7 @@ class Redirect(models.Model):
     rd_title = models.CharField(max_length=255)
     rd_interwiki = models.CharField(max_length=32, blank=True, null=True)
     rd_fragment = models.CharField(max_length=255, blank=True, null=True)
-
-    lang = models.CharField(max_length=4, blank=True, null=True)
+    
     class Meta:
         managed = False
         db_table = 'redirect'
