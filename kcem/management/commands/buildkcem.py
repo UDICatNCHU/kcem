@@ -12,4 +12,4 @@ class Command(BaseCommand):
 	def handle(self, *args, **options):
 		k = KCEM(lang=options['lang'], uri=uri)
 		k.build()
-		self.stdout.write(self.style.SUCCESS('PARSING WIKIPEDIA PAGE HIERARCHY SUCCESS')
+		self.stdout.write(self.style.SUCCESS('PARSING WIKIPEDIA PAGE HIERARCHY SUCCESS'))

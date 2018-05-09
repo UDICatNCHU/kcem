@@ -77,12 +77,12 @@ class KCEM(object):
         return candidate
 
     def build(self):
-        for page in page.objects.filter(Q(page_namespace=0) | Q(page_namespace=14))    :
+        for page in Page.objects.filter(Q(page_namespace=0) | Q(page_namespace=14))    :
             page_id = page.page_id
             page_title = page.page_title
 
             toxinomic_score_dict = {}
-            for category in categorylinks.objects.filter(cl_from=page_id):
+            for category in Categorylinks.objects.filter(cl_from=page_id):
                 toxinomic_score_dict[category] = toxinomic_score(page_title, category)
             print(minMaxNormalization(toxinomic_score_dict))
             
