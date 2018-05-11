@@ -18,7 +18,5 @@ from django.contrib import admin
 from kcem import views
 
 urlpatterns = [
-    url(r'^$', views.kcem, name='kcem'), 
-    url(r'^kcemList$', views.kcemList, name='kcemList'), 
-    url(r'^child$', views.child, name='child'), 
+    url(r'^$', views.kcem, name='kcem')
 ]

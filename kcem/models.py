@@ -9,6 +9,9 @@ from __future__ import unicode_literals
 
 from django.db import models
 
+class Hypernym(models.Model):
+    key = models.CharField(primary_key=True, max_length=255)
+    value = models.TextField()
 
 class Category(models.Model):
     cat_id = models.AutoField(primary_key=True)
@@ -57,6 +60,9 @@ class Page(models.Model):
         managed = False
         db_table = 'page'
         unique_together = (('page_namespace', 'page_title'),)
+
+    def __str__(self):
+        return '({}) {}'.format(self.page_id, self.page_title)
 
 
 class Pagelinks(models.Model):
