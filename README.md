@@ -2,6 +2,30 @@
 
 KCEM的class檔，可以透過 `pip` 直接安裝
 
+## Info of Wiki Dumps
+
+```
+Database changed
+mysql> SELECT COUNT(*) FROM categorylinks;
++----------+
+| COUNT(*) |
++----------+
+| 12490991 |
++----------+
+1 row in set (10.10 sec)
+
+mysql> SELECT COUNT(*) FROM page;
++----------+
+| COUNT(*) |
++----------+
+|  5380929 |
++----------+
+1 row in set (5.68 sec)
+
+mysql> 
+
+```
+
 
 ## Installing
 

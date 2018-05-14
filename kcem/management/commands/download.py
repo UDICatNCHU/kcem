@@ -1,4 +1,5 @@
 from django.core.management.base import BaseCommand, CommandError
+from django.core.management import execute_from_command_line
 import subprocess
 from kcem.models import *
 
@@ -10,23 +11,20 @@ class Command(BaseCommand):
 		parser.add_argument('--lang', type=str)
 		
 	def handle(self, *args, **options):
-		subprocess.call(['wget', 'https://dumps.wikimedia.org/${1}wiki/latest/${1}wiki-latest-page.sql.gz'])
-		subprocess.call(['wget', 'https://dumps.wikimedia.org/${1}wiki/latest/${1}wiki-latest-categorylinks.sql.gz'])
-		subprocess.call(['wget', 'https://dumps.wikimedia.org/${1}wiki/latest/${1}wiki-latest-category.sql.gz'])
-		subprocess.call(['wget', 'https://dumps.wikimedia.org/${1}wiki/latest/${1}wiki-latest-pagelinks.sql.gz'])
-		subprocess.call(['wget', 'https://dumps.wikimedia.org/${1}wiki/latest/${1}wiki-latest-redirect.sql.gz'])
+		lang = options['lang']
+		subprocess.call(['wget', 'https://dumps.wikimedia.org/${0}wiki/latest/${0}wiki-latest-page.sql.gz'.format(lang)])
+		subprocess.call(['wget', 'https://dumps.wikimedia.org/${0}wiki/latest/${0}wiki-latest-categorylinks.sql.gz'.format(lang)])
+		# subprocess.call(['wget', 'https://dumps.wikimedia.org/${0}wiki/latest/${0}wiki-latest-category.sql.gz'.format(lang)])
+		# subprocess.call(['wget', 'https://dumps.wikimedia.org/${0}wiki/latest/${0}wiki-latest-pagelinks.sql.gz'.format(lang)])
+		# subprocess.call(['wget', 'https://dumps.wikimedia.org/${0}wiki/latest/${0}wiki-latest-redirect.sql.gz'.format(lang)])
 
 		subprocess.call(['gunzip', '*.sql.gz'])
 		
-		subprocess.call(['mysql', 'test', '<', '${1}wiki-latest-page.sql'])
-		subprocess.call(['mysql', 'test', '<', '${1}wiki-latest-pagelinks.sql'])
-		subprocess.call(['mysql', 'test', '<', '${1}wiki-latest-categorylinks.sql'])
-		subprocess.call(['mysql', 'test', '<', '${1}wiki-latest-category.sql'])
-		subprocess.call(['mysql', 'test', '<', '${1}wiki-latest-redirect.sql'])
+		subprocess.call(['mysql', 'test', '<', '${0}wiki-latest-page.sql'.format(lang)])
+		subprocess.call(['mysql', 'test', '<', '${0}wiki-latest-categorylinks.sql'.format(lang)])
+		# subprocess.call(['mysql', 'test', '<', '${0}wiki-latest-pagelinks.sql'.format(lang)])
+		# subprocess.call(['mysql', 'test', '<', '${0}wiki-latest-category.sql'.format(lang)])
+		# subprocess.call(['mysql', 'test', '<', '${0}wiki-latest-redirect.sql'.format(lang)])
 
-		page.objects.filter(lang=None).update(lang=options['lang'])
-		categorylinks.objects.filter(lang=None).update(lang=options['lang'])
-		category.objects.filter(lang=None).update(lang=options['lang'])
-		pagelinks.objects.filter(lang=None).update(lang=options['lang'])
-		redirect.objects.filter(lang=None).update(lang=options['lang'])
+		execute_from_command_line(["manage.py", "buildkcem", "--lang", lang])
 		self.stdout.write(self.style.SUCCESS('Download Wikipedia dump success!!!'))
