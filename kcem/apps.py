@@ -10,6 +10,7 @@ from collections import namedtuple
 from opencc import OpenCC
 from functools import reduce
 from collections import defaultdict
+from kcem.utils.fullwidth2halfwidth import *
 import gensim, json, logging
 
 openCC = OpenCC('s2t')
@@ -124,7 +125,11 @@ class KCEM(object):
 		merge_insert_list = []
 		for page in Page.objects.filter(Q(page_namespace=0) | Q(page_namespace=14))    :
 			page_id = page.page_id
+
+			# turn it into lower case or it'll raise Duplicate Key in DB
 			page_title = openCC.convert(page.page_title.decode('utf-8')).lower()
+			# turn fullwidth to halfwidth to prevent it from having Duplicated Key again...
+			page_title = f2h(page_title)
 			toxinomic_score_dict = {}
 			for category in categorylinks_query(page_id):
 				parent = openCC.convert(category.cl_to.decode('utf-8'))
