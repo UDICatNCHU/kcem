@@ -99,41 +99,6 @@ class KCEM(object):
 				nt_result = namedtuple('Result', desc)
 			return (nt_result(*row) for row in result)
 
-		def merge_hypernym_and_insert(merge_insert_list):
-			############## MySQL Bug ####################
-			# e.g. ñ = n, so when i do bulk_create 
-			# it would occur Duplicate Key Error 
-			# so function is trying handle this issue....            
-			############## MySQL Bug ####################
-			# also there's another bug
-			# because wiki might have multiple page which describes the same topic
-			# but only one page would have real contents
-			# others might be redirect page or category
-			# but they all have the same key...
-
-			merge_table = defaultdict(set)
-
-			for page_title, toxinomic_score_dict_json_str in merge_insert_list:
-				# query duplicate key object from DB
-				# and put it's key into merge_table for merge sake
-				item_already_inserted = Hypernym.objects.get(key=page_title)
-				merge_table[page_title].update(json.loads(item_already_inserted.value).keys())
-
-				# also put another duplicate key object which isn't in DB
-				# into merge_table for merge sake
-				toxinomic_score_dict = json.loads(toxinomic_score_dict_json_str)
-				merge_table[page_title].update(toxinomic_score_dict.keys())
-
-			# use merge_table which having all the categorys of a key
-			# and then use toxinomic_score and minMaxNormalization to calculate real probability
-			for page_title, category_key_set in merge_table:
-				merge_table[page_title] = minMaxNormalization({toxinomic_score(page_title, category) for category in category_key_set})
-
-			# insert to DB
-			for page_title, toxinomic_score_dict in merge_table:
-				obj, created = Hypernym.objects.update_or_create(
-				    key=page_title, defaults={'value':json.dumps(toxinomic_score_dict)})
-
 		# empty table kcem_Hypernym first
 		Hypernym.objects.all().delete()
 
@@ -167,29 +132,6 @@ class KCEM(object):
 			if len(insert_list) > 100000:
 				logging.info("already inserted %d keyword" % len(insert_list))
 				Hypernym.objects.bulk_create(insert_list)
-				############## MySQL Bug ####################
-				# e.g. ñ = n, so when i do bulk_create 
-				# it would occur Duplicate Key Error 
-				# so these multiple try/except is trying handle this issue....            
-				############## MySQL Bug ####################
-				# try:
-				# 	Hypernym.objects.bulk_create(insert_list)
-				# except Exception as e:
-				# 	print(e + "only insert len == 1")
-				# 	try:
-				# 		Hypernym.objects.bulk_create([j for j in insert_list if len(j.key) != 1])
-				# 	except Exception as e:
-						# this is a weird error
-						# maybe some item which has already been inserted before
-						# has a key called n123,
-						# and the bulk_create we do above might have a item with key ñ123
-						# MySQL thinks ñ123 == n123 is True
-						# and it cannot be filtered out by removing items with key length less than 1
-						# so i do merge. This merge_hypernym_and_insert would merge Categorys of ñ123 with n123's, which might cause a little harm to accuracy of model... 
-
-				# 		print(e + "use merge to insert len == 1")
-				# 		merge_hypernym_and_insert([j for j in insert_list if len(j.key) != 1])
-				# insert_list = []
 
 	def get(self, keyword):
 		try:
