@@ -11,7 +11,8 @@ from opencc import OpenCC
 from functools import reduce
 from collections import defaultdict
 from kcem.utils.fullwidth2halfwidth import *
-import gensim, json, logging
+import gensim, json, logging, math
+import multiprocessing as mp
 
 openCC = OpenCC('s2t')
 logging.basicConfig(format='%(levelname)s : %(asctime)s : %(message)s', filename='buildKCEM.log', level=logging.INFO)
@@ -26,6 +27,7 @@ class KCEM(object):
 		self.kcmObject = KCM(lang=self.lang, uri=uri)
 		self.model = gensim.models.KeyedVectors.load_word2vec_format('med400.model.bin.{}'.format(self.lang), binary=True)
 		self.keySet = set()
+		self.cpus = math.ceil(mp.cpu_count() * 0.5)
 
 	def build(self):
 		def toxinomic_score(keyword, parent):
@@ -95,28 +97,34 @@ class KCEM(object):
 			return (nt_result(*row) for row in result)
 
 		def merge_hypernym_and_insert(merge_insert_list):
-			hypernym_table = defaultdict(dict)
-
 			# merge those item having the same key
 			# because wiki might have multiple page which describes the same topic
 			# but only one page would have real contents
 			# others might be redirect page or category
 			# but they all have the same key...
-			for page_title, toxinomic_score_dict in merge_insert_list:
-				# [Bug] what if toxinomic_score_dict has category key collision?
-				# e.g. Python has a toxinomic_score_dict {'Python':1}
-				# and another Python has a toxinomic_score_dict {'Python':0.7, 'Programming Language': 0.2}
-				# then by using update()
-				# we cannot decide to choose Python:1 or Python:0.7
-				# it would depends on the order of merge_insert_list.
-				hypernym_table[page_title].update(toxinomic_score_dict)
 
-			# use minMaxNormalization to calculate probability distribution again
-			for page_title, toxinomic_score_dict in hypernym_table:
-				hypernym_table[page_title] = minMaxNormalization(toxinomic_score_dict)
+			merge_table = defaultdict(set)
+
+			for page_title, toxinomic_score_dict_json_str in merge_insert_list:
+				# query duplicate key object from DB
+				# and put it's key into merge_table for merge sake
+				item_already_inserted = Hypernym.objects.get(key=page_title)
+				merge_table[page_title].update(json.loads(item_already_inserted.value).keys())
+
+				# also put another duplicate key object which isn't in DB
+				# into merge_table for merge sake
+				toxinomic_score_dict = json.loads(toxinomic_score_dict_json_str)
+				merge_table[page_title].update(toxinomic_score_dict.keys())
+
+			# use merge_table which having all the categorys of a key
+			# and then use toxinomic_score and minMaxNormalization to calculate real probability
+			for page_title, category_key_set in merge_table:
+				merge_table[page_title] = minMaxNormalization({toxinomic_score(page_title, category) for category in category_key_set})
 
 			# insert to DB
-			Hypernym.objects.bulk_create((Hypernym(key=page_title, value=json.dumps(toxinomic_score_dict)) for page_title, toxinomic_score_dict in hypernym_table))
+			for page_title, toxinomic_score_dict in merge_table:
+				obj, created = Hypernym.objects.update_or_create(
+				    key=page_title, defaults={'value':json.dumps(toxinomic_score_dict)})
 
 		# empty table kcem_Hypernym first
 		Hypernym.objects.all().delete()
@@ -128,14 +136,13 @@ class KCEM(object):
 
 			# turn it into lower case or it'll raise Duplicate Key in DB
 			page_title = openCC.convert(page.page_title.decode('utf-8')).lower()
-			# turn fullwidth to halfwidth to prevent it from having Duplicated Key again...
+			# turn fullwidth to halfwidth to prevent it from having Duplicate Key again...
 			page_title = f2h(page_title)
 			toxinomic_score_dict = {}
 			for category in categorylinks_query(page_id):
 				parent = openCC.convert(category.cl_to.decode('utf-8'))
 				print(page_title, parent)
-				tmp = toxinomic_score(page_title, parent)
-				toxinomic_score_dict[parent] = tmp
+				toxinomic_score_dict[parent] = toxinomic_score(page_title, parent)
 
 			if not toxinomic_score_dict:
 				# this kind of error comes from redirect page
@@ -146,7 +153,10 @@ class KCEM(object):
 			else:
 				value = minMaxNormalization(toxinomic_score_dict)
 				if page_title in self.keySet:
-					merge_insert_list.append((page_title, value))
+					merge_insert_list.append(Hypernym(
+						key=page_title,
+						value=json.dumps(value)
+					))
 				else:
 					print(len(insert_list))
 					self.keySet.add(page_title)
@@ -156,13 +166,27 @@ class KCEM(object):
 					))
 				if len(insert_list) > 1000:
 					logging.info("already inserted %d keyword" % len(insert_list))
+					############## MySQL Bug ####################
+					# e.g. ñ = n, so when i do bulk_create 
+					# it would occur Duplicate Key Error 
+					# so these multiple try/except is trying handle this issue....            
+					############## MySQL Bug ####################
 					try:
 						Hypernym.objects.bulk_create(insert_list)
 					except Exception as e:
-						tmp = [i.__dict__ for i in insert_list]
-						tmp = [{'key':i['key'], 'value':i['value']} for i in tmp]
-						json.dump(tmp, open('kcem.error.json', 'w'))
-						raise e
+						print(e + "only insert len == 1")
+						try:
+							Hypernym.objects.bulk_create([j for j in insert_list if len(j.key) != 1])
+						except Exception as e:
+							# this is a weird error
+							# maybe some item which has already been inserted before
+							# has a key called n123,
+							# and the bulk_create we do above might have a item with key ñ123
+							# MySQL thinks ñ123 == n123 is True
+							# and it cannot be filtered out by removing items with key length less than 1
+							# so i do merge. This merge_hypernym_and_insert would merge Categorys of ñ123 with n123's, which might cause a little harm to accuracy of model... 
+							print(e + "use merge to insert len == 1")
+							merge_hypernym_and_insert([j for j in insert_list if len(j.key) != 1])
 					insert_list = []
 
 		merge_hypernym_and_insert(merge_insert_list)
