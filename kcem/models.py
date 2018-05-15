@@ -10,7 +10,7 @@ from __future__ import unicode_literals
 from django.db import models
 
 class Hypernym(models.Model):
-    key = models.CharField(primary_key=True, max_length=255)
+    key = models.CharField(db_index=True, max_length=255)
     value = models.TextField()
 
 class Category(models.Model):
