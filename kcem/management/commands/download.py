@@ -25,6 +25,4 @@ class Command(BaseCommand):
 		# subprocess.call(['mysql', 'test', '<', '${0}wiki-latest-pagelinks.sql'.format(lang)])
 		# subprocess.call(['mysql', 'test', '<', '${0}wiki-latest-category.sql'.format(lang)])
 		# subprocess.call(['mysql', 'test', '<', '${0}wiki-latest-redirect.sql'.format(lang)])
-
-		execute_from_command_line(["manage.py", "buildkcem", "--lang", lang])
 		self.stdout.write(self.style.SUCCESS('Download Wikipedia dump success!!!'))

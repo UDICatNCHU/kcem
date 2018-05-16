@@ -26,8 +26,7 @@ class KCEM(object):
 		self.lang = lang
 		self.model = gensim.models.KeyedVectors.load_word2vec_format('med400.model.bin.{}'.format(self.lang), binary=True)
 		self.kcmObject = KCM(lang=self.lang, uri=uri)
-		self.cpus = 2
-		# self.cpus = math.ceil(mp.cpu_count() * 0.3)
+		self.cpus = math.ceil(mp.cpu_count() * 0.3)
 
 	def calculateProbability(self, kcmObject, keyword, category_set):
 		def toxinomic_score(keyword, category):
@@ -94,15 +93,19 @@ class KCEM(object):
 		def categorylinks_query(page_id):
 			with connection.cursor() as cursor:
 				cursor.execute("SELECT * FROM categorylinks where cl_from = %s", [page_id])
-				desc = [col[0] for col in cursor.description]
-				result = cursor.fetchall()
-				nt_result = namedtuple('Result', desc)
+				try:
+					desc = [col[0] for col in cursor.description]
+					result = cursor.fetchall()
+					nt_result = namedtuple('Result', desc)
+				except Exception as e:
+					print(cursor.fetchall())
+					return []
 			return (nt_result(*row) for row in result)
 
-		def process_job(page_list):
+		def process_job(page_list, lock):
 			insert_list = []
 			kcmObject = KCM(lang=self.lang, uri=uri)
-			for page in page_list:
+			for index, page in enumerate(page_list):
 				page_id = page.page_id
 				# turn it into lower case or it'll raise Duplicate Key in DB
 				page_title = openCC.convert(page.page_title.decode('utf-8')).lower()
@@ -125,10 +128,14 @@ class KCEM(object):
 					key=page_title,
 					value=json.dumps(value)
 				))
-
-				if len(insert_list) > 100000:
-					logging.info("already inserted %d keyword" % len(insert_list))
+				print(page_title, index, len(insert_list))
+				if len(insert_list) > 1000:
+					lock.acquire()
+					logging.info('lock acquire')
 					Hypernym.objects.bulk_create(insert_list)
+					logging.info("already inserted %d keyword" % len(insert_list))
+					lock.release()
+					logging.info('lock release')
 					insert_list = []
 			Hypernym.objects.bulk_create(insert_list)
 					
@@ -139,7 +146,8 @@ class KCEM(object):
 		page_list = Page.objects.filter(Q(page_namespace=0) | Q(page_namespace=14))
 		amount = math.ceil(len(page_list)/self.cpus)
 		page_list = [page_list[i:i + amount] for i in range(0, len(page_list), amount)]
-		processes = [mp.Process(target=process_job, kwargs={'page_list':page_list[i]}) for i in range(self.cpus)]
+		lock = mp.Lock()
+		processes = [mp.Process(target=process_job, kwargs={'page_list':page_list[i], 'lock':lock}) for i in range(self.cpus)]
 
 		for process in processes:
 			process.start()
