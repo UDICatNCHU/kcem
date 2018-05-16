@@ -22,13 +22,14 @@ class KcemConfig(AppConfig):
 
 class KCEM(object):
 	"""docstring for KCEM"""
-	def __init__(self, lang, uri=None):
+	def __init__(self, lang, uri=uri):
 		self.lang = lang
-		self.kcmObject = KCM(lang=self.lang, uri=uri)
 		self.model = gensim.models.KeyedVectors.load_word2vec_format('med400.model.bin.{}'.format(self.lang), binary=True)
-		self.cpus = math.ceil(mp.cpu_count() * 0.5)
+		self.kcmObject = KCM(lang=self.lang, uri=uri)
+		self.cpus = 2
+		# self.cpus = math.ceil(mp.cpu_count() * 0.3)
 
-	def calculateProbability(self, keyword, category_set):
+	def calculateProbability(self, kcmObject, keyword, category_set):
 		def toxinomic_score(keyword, category):
 			jiebaCut = jieba.lcut(category, cut_all=True)
 			def similarityScore():
@@ -43,7 +44,7 @@ class KCEM(object):
 				return reduce(lambda x, y: x+y, scoreList)
 
 			def kcmScore():
-				keywordKcm = dict(((key, count) for key, pos, count in self.kcmObject.get(keyword, -1).get('value', [])))
+				keywordKcm = dict(((key, count) for key, pos, count in kcmObject.get(keyword, -1).get('value', [])))
 				if keywordKcm:
 					keywordKcmTotal = sum(keywordKcm.values())
 					return reduce(lambda x,y:x+y, [(keywordKcm.get(term, 0) / keywordKcmTotal)**2 for term in jiebaCut])
@@ -69,7 +70,6 @@ class KCEM(object):
 			# Use Min-max normalization
 			# 因為最後輸出的值為機率，而機率不能是負的
 			# 所以先透過min-max轉成0~1的數值範圍
-			# print(candidate)
 			M, m = max(candidate.items(), key=lambda x:x[1])[1], min(candidate.items(), key=lambda x:x[1])[1]
 			if M == m or len(candidate) == 0:
 				M, m = 1, 0
@@ -94,44 +94,58 @@ class KCEM(object):
 		def categorylinks_query(page_id):
 			with connection.cursor() as cursor:
 				cursor.execute("SELECT * FROM categorylinks where cl_from = %s", [page_id])
-				result = cursor.fetchall()
 				desc = [col[0] for col in cursor.description]
+				result = cursor.fetchall()
 				nt_result = namedtuple('Result', desc)
 			return (nt_result(*row) for row in result)
 
+		def process_job(page_list):
+			insert_list = []
+			kcmObject = KCM(lang=self.lang, uri=uri)
+			for page in page_list:
+				page_id = page.page_id
+				# turn it into lower case or it'll raise Duplicate Key in DB
+				page_title = openCC.convert(page.page_title.decode('utf-8')).lower()
+
+				# turn fullwidth to halfwidth to prevent it from having Duplicate Key again...
+				page_title = f2h(page_title)
+				category_set = set()
+				for category in categorylinks_query(page_id):
+					category = openCC.convert(category.cl_to.decode('utf-8'))
+					category_set.add(category)
+
+				if not category_set:
+					# this kind of error comes from redirect page
+					# here's an example
+					# 1. https://zh.wikipedia.org/w/index.php?title=%E7%A3%81%E5%81%8F%E8%A7%92&redirect=no
+					# 2. https://zh.wikipedia.org/zh-tw/%E5%9C%B0%E7%A3%81%E5%81%8F%E8%A7%92
+					continue
+				value = self.calculateProbability(kcmObject, page_title, category_set)
+				insert_list.append(Hypernym(
+					key=page_title,
+					value=json.dumps(value)
+				))
+
+				if len(insert_list) > 100000:
+					logging.info("already inserted %d keyword" % len(insert_list))
+					Hypernym.objects.bulk_create(insert_list)
+					insert_list = []
+			Hypernym.objects.bulk_create(insert_list)
+					
 		# empty table kcem_Hypernym first
 		Hypernym.objects.all().delete()
 
-		insert_list = []
-		for page in Page.objects.filter(Q(page_namespace=0) | Q(page_namespace=14))    :
-			page_id = page.page_id
+		# select Main page("Real" content; articles) and Category description pages
+		page_list = Page.objects.filter(Q(page_namespace=0) | Q(page_namespace=14))
+		amount = math.ceil(len(page_list)/self.cpus)
+		page_list = [page_list[i:i + amount] for i in range(0, len(page_list), amount)]
+		processes = [mp.Process(target=process_job, kwargs={'page_list':page_list[i]}) for i in range(self.cpus)]
 
-			# turn it into lower case or it'll raise Duplicate Key in DB
-			page_title = openCC.convert(page.page_title.decode('utf-8')).lower()
-			# turn fullwidth to halfwidth to prevent it from having Duplicate Key again...
-			page_title = f2h(page_title)
-			category_set = set()
-			for category in categorylinks_query(page_id):
-				category = openCC.convert(category.cl_to.decode('utf-8'))
-				print(page_title, category)
-				category_set.add(category)
-
-			if not category_set:
-				# this kind of error comes from redirect page
-				# here's an example
-				# 1. https://zh.wikipedia.org/w/index.php?title=%E7%A3%81%E5%81%8F%E8%A7%92&redirect=no
-				# 2. https://zh.wikipedia.org/zh-tw/%E5%9C%B0%E7%A3%81%E5%81%8F%E8%A7%92
-				continue
-			value = self.calculateProbability(page_title, category_set)
-			insert_list.append(Hypernym(
-				key=page_title,
-				value=json.dumps(value)
-			))
-
-			print(len(insert_list))
-			if len(insert_list) > 100000:
-				logging.info("already inserted %d keyword" % len(insert_list))
-				Hypernym.objects.bulk_create(insert_list)
+		for process in processes:
+			process.start()
+		for process in processes:
+			process.join()
+		logging.info('finish kcem insert')
 
 	def get(self, keyword):
 		try:
@@ -140,6 +154,17 @@ class KCEM(object):
 				'value':sorted(json.loads(Hypernym.objects.get(key=keyword).value).items(), key=lambda x:-x[1])
 			}
 		except Exception as e:
+			############## MySQL Bug ####################	
+			# the original Hypernym schema is:
+			# class Hypernym(models.Model):
+			#     key = models.CharField(primary_key=True, max_length=255)
+			#     value = models.TextField()
+			# However, MySQK take ñ = n, so when i do bulk_create 	
+			# it would occur Duplicate Key Error 	
+			# but i don't know how to set the right binary comparison in MySQL
+			# so cancel primary_key=True of Hypernym schema
+			# and fix these problem using try/except in get function....
+			############## MySQL Bug ####################
 			hypernyms = Hypernym.objects.filter(key=keyword)
 			Hypernym.objects.filter(key=keyword).delete()
 
@@ -148,8 +173,7 @@ class KCEM(object):
 				for category in json.loads(h.value):
 					category_set.add(category)
 
-			# value = minMaxNormalization({category:toxinomic_score(keyword, category) for category in category_set})
-			value = self.calculateProbability(keyword, category_set)
+			value = self.calculateProbability(self.kcmObject, keyword, category_set)
 			Hypernym.objects.create(key=keyword, value=json.dumps(value))
 			return {
 				'key': keyword,
