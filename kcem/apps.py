@@ -139,22 +139,23 @@ class KCEM(object):
 		# empty table kcem_Hypernym first
 		Hypernym.objects.all().delete()
 
-		# create self.dir to store kcem pickle
-		subprocess.call(['mkdir', self.dir])
+		if not os.path.exists(os.path.join(self.dir, 'done')):
+			# create self.dir to store kcem pickle
+			subprocess.call(['mkdir', self.dir])
 
-		# select Main page("Real" content; articles) and Category description pages
-		page_list = Page.objects.filter(Q(page_namespace=0) | Q(page_namespace=14))
-		amount = math.ceil(len(page_list)/self.cpus)
-		page_list = [page_list[i:i + amount] for i in range(0, len(page_list), amount)]
-		processes = [mp.Process(target=process_job, kwargs={'page_list':page_list[i]}) for i in range(self.cpus)]
+			# select Main page("Real" content; articles) and Category description pages
+			page_list = Page.objects.filter(Q(page_namespace=0) | Q(page_namespace=14))
+			amount = math.ceil(len(page_list)/self.cpus)
+			page_list = [page_list[i:i + amount] for i in range(0, len(page_list), amount)]
+			processes = [mp.Process(target=process_job, kwargs={'page_list':page_list[i]}) for i in range(self.cpus)]
 
-		for process in processes:
-			process.start()
-		for process in processes:
-			process.join()
+			for process in processes:
+				process.start()
+			for process in processes:
+				process.join()
 
-		# mark processes job are all done
-		open(os.path.join(self.dir, 'done'), 'w')
+			# mark processes job are all done
+			open(os.path.join(self.dir, 'done'), 'w')
 
 		# insert those pickle files into MySQL
 		logging.info('start merge pickle files')
