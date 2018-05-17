@@ -130,7 +130,6 @@ class KCEM(object):
 					key=page_title,
 					value=json.dumps(value)
 				))
-				print(page_title, index, len(insert_list))
 				if len(insert_list) > 5000:
 					pickle.dump(insert_list, open(os.path.join(self.dir, '{}-{}.pkl'.format(process_id, index)), 'wb'))
 					insert_list = []
@@ -154,14 +153,23 @@ class KCEM(object):
 		for process in processes:
 			process.join()
 
+		# mark processes job are all done
+		open(os.path.join(self.dir, 'done'), 'w')
+
 		# insert those pickle files into MySQL
 		logging.info('start merge pickle files')
 		insert_list = []
 		for pickle_file in os.listdir(self.dir):
-			insert_list.extend(pickle.load(open(pickle_file, 'rb')))
-			if psutil.virtual_memory().percent > 90:
-				Hypernym.objects.bulk_create(insert_list)
-				insert_list = []
+			if pickle_file.endswith('pkl'):
+				insert_list.extend(pickle.load(open(os.path.join(self.dir, pickle_file), 'rb')))
+				if psutil.virtual_memory().percent > 90:
+					Hypernym.objects.bulk_create(insert_list)
+					insert_list = []
+				elif len(insert_list) > 50000:
+					Hypernym.objects.bulk_create(insert_list)
+					logging.info('finish insert 50000 rows')
+					insert_list = []
+		Hypernym.objects.bulk_create(insert_list)
 
 		logging.info('finish kcem insert')
 
@@ -184,7 +192,6 @@ class KCEM(object):
 			# and fix these problem using try/except in get function....
 			############## MySQL Bug ####################
 			hypernyms = Hypernym.objects.filter(key=keyword)
-			Hypernym.objects.filter(key=keyword).delete()
 
 			category_set = set()
 			for h in hypernyms:
@@ -192,6 +199,7 @@ class KCEM(object):
 					category_set.add(category)
 
 			value = self.calculateProbability(self.kcmObject, keyword, category_set)
+			Hypernym.objects.filter(key=keyword).delete()
 			Hypernym.objects.create(key=keyword, value=json.dumps(value))
 			return {
 				'key': keyword,

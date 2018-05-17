@@ -13,6 +13,9 @@ class Hypernym(models.Model):
     key = models.CharField(db_index=True, max_length=255)
     value = models.TextField()
 
+    def __str__(self):
+        return self.key
+
 class Category(models.Model):
     cat_id = models.AutoField(primary_key=True)
     cat_title = models.CharField(unique=True, max_length=255)
