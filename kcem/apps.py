@@ -11,7 +11,7 @@ from opencc import OpenCC
 from functools import reduce
 from collections import defaultdict
 from kcem.utils.fullwidth2halfwidth import *
-import gensim, json, logging, math
+import gensim, json, logging, math, pickle, os, psutil, subprocess
 import multiprocessing as mp
 
 openCC = OpenCC('s2t')
@@ -24,6 +24,7 @@ class KCEM(object):
 	"""docstring for KCEM"""
 	def __init__(self, lang, uri=uri):
 		self.lang = lang
+		self.dir = 'kcem_{}'.format(self.lang)
 		self.model = gensim.models.KeyedVectors.load_word2vec_format('med400.model.bin.{}'.format(self.lang), binary=True)
 		self.kcmObject = KCM(lang=self.lang, uri=uri)
 		self.cpus = math.ceil(mp.cpu_count() * 0.3)
@@ -102,9 +103,10 @@ class KCEM(object):
 					return []
 			return (nt_result(*row) for row in result)
 
-		def process_job(page_list, lock):
+		def process_job(page_list):
 			insert_list = []
 			kcmObject = KCM(lang=self.lang, uri=uri)
+			process_id = os.getpid()
 			for index, page in enumerate(page_list):
 				page_id = page.page_id
 				# turn it into lower case or it'll raise Duplicate Key in DB
@@ -129,30 +131,38 @@ class KCEM(object):
 					value=json.dumps(value)
 				))
 				print(page_title, index, len(insert_list))
-				if len(insert_list) > 1000:
-					lock.acquire()
-					logging.info('lock acquire')
-					Hypernym.objects.bulk_create(insert_list)
-					logging.info("already inserted %d keyword" % len(insert_list))
-					lock.release()
-					logging.info('lock release')
+				if len(insert_list) > 5000:
+					pickle.dump(insert_list, open(os.path.join(self.dir, '{}-{}.pkl'.format(process_id, index)), 'wb'))
 					insert_list = []
-			Hypernym.objects.bulk_create(insert_list)
+			pickle.dump(insert_list, open(os.path.join(self.dir, '{}-{}.pkl'.format(process_id, index)), 'wb'))
+			logging.info('{} done'.format(process_id))
 					
 		# empty table kcem_Hypernym first
 		Hypernym.objects.all().delete()
+
+		# create self.dir to store kcem pickle
+		subprocess.call(['mkdir', self.dir])
 
 		# select Main page("Real" content; articles) and Category description pages
 		page_list = Page.objects.filter(Q(page_namespace=0) | Q(page_namespace=14))
 		amount = math.ceil(len(page_list)/self.cpus)
 		page_list = [page_list[i:i + amount] for i in range(0, len(page_list), amount)]
-		lock = mp.Lock()
-		processes = [mp.Process(target=process_job, kwargs={'page_list':page_list[i], 'lock':lock}) for i in range(self.cpus)]
+		processes = [mp.Process(target=process_job, kwargs={'page_list':page_list[i]}) for i in range(self.cpus)]
 
 		for process in processes:
 			process.start()
 		for process in processes:
 			process.join()
+
+		# insert those pickle files into MySQL
+		logging.info('start merge pickle files')
+		insert_list = []
+		for pickle_file in os.listdir(self.dir):
+			insert_list.extend(pickle.load(open(pickle_file, 'rb')))
+			if psutil.virtual_memory().percent > 90:
+				Hypernym.objects.bulk_create(insert_list)
+				insert_list = []
+
 		logging.info('finish kcem insert')
 
 	def get(self, keyword):

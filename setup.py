@@ -26,7 +26,8 @@ setup(
         'pytest',
         'json-lines',
         'pyquery',
-        'kem'
+        'kem',
+        'psutil'
     ],
     dependency_links=[
         'git+git://github.com/yichen0831/opencc-python.git@master#egg=opencc-python',
