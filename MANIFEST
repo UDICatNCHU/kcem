@@ -4,11 +4,10 @@ setup.py
 kcem/__init__.py
 kcem/admin.py
 kcem/apps.py
-kcem/download.py
+kcem/download_wikisql.sh
 kcem/models.py
 kcem/tests.py
 kcem/urls.py
 kcem/views.py
 kcem/management/commands/buildkcem.py
-kcem/management/commands/download.py
 kcem/utils/fullwidth2halfwidth.py
