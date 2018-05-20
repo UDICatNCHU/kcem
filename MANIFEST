@@ -10,4 +10,6 @@ kcem/tests.py
 kcem/urls.py
 kcem/views.py
 kcem/management/commands/buildkcem.py
+kcem/migrations/0001_initial.py
+kcem/migrations/__init__.py
 kcem/utils/fullwidth2halfwidth.py

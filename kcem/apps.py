@@ -130,7 +130,7 @@ class KCEM(object):
 					key=page_title,
 					value=json.dumps(value)
 				))
-				if len(insert_list) > 5000:
+				if len(insert_list) > 100000:
 					pickle.dump(insert_list, open(os.path.join(self.dir, '{}-{}.pkl'.format(process_id, index)), 'wb'))
 					insert_list = []
 			pickle.dump(insert_list, open(os.path.join(self.dir, '{}-{}.pkl'.format(process_id, index)), 'wb'))
@@ -158,6 +158,9 @@ class KCEM(object):
 			open(os.path.join(self.dir, 'done'), 'w')
 
 		# insert those pickle files into MySQL
+		# the reason why i dump datas into pickle and then insert it back into MySQL
+		# is that use multiprocessing to insert into MySQL would cause disconnection
+		# i don't know how to fix...
 		logging.info('start merge pickle files')
 		insert_list = []
 		for pickle_file in os.listdir(self.dir):
@@ -166,9 +169,9 @@ class KCEM(object):
 				if psutil.virtual_memory().percent > 90:
 					Hypernym.objects.bulk_create(insert_list)
 					insert_list = []
-				elif len(insert_list) > 50000:
+				elif len(insert_list) > 100000:
 					Hypernym.objects.bulk_create(insert_list)
-					logging.info('finish insert 50000 rows')
+					logging.info('finish insert 100000 rows')
 					insert_list = []
 		Hypernym.objects.bulk_create(insert_list)
 
