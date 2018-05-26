@@ -46,7 +46,7 @@ so need to finish these django setups.
 
 1. settings.py：
 
-  ```
+  ```python
   INSTALLED_APPS = [
       'kcem'
        ...
@@ -54,7 +54,7 @@ so need to finish these django setups.
   ```
 2. urls.py：  
 
-  ```
+  ```python
   import kcem.urls
   urlpatterns += [
       url(r'^kcem/', include(kcem.urls))
@@ -63,6 +63,79 @@ so need to finish these django setups.
 
 3. `python3 manage.py buildkcem --lang <lang, e.g., zh or en or th>`
 4. fire `python manage.py runserver` and go `127.0.0.1:8000/` to check whether the config is all ok.
+
+## API
+
+1. Get correlated keywords：_`/kcem`_
+    - keyword
+    - num (default=10)
+    - example1：<http://udiclab.cs.nchu.edu.tw/kcem?keyword=周杰倫&lang=zh>
+
+        ```json
+        {
+          "origin": "周杰倫",
+          "similarity": 1,
+          "value": [
+            [
+              "臺灣男歌手",
+              0.1077329254516259
+            ],
+            [
+              "臺灣創作歌手",
+              0.08618136696067945
+            ],
+            [
+              "臺灣作詞家",
+              0.08453908870383998
+            ],
+            [
+              "臺灣男演員",
+              0.07853875803243504
+            ],
+            [
+              "客家裔臺灣人",
+              0.07775312164574238
+            ],
+            [
+              "臺灣作曲家",
+              0.06795213648026219
+            ],
+            [
+              "臺灣億萬富豪",
+              0.06205651770108215
+            ],
+            [
+              "臺灣新教徒",
+              0.06011534659254377
+            ],
+            [
+              "以臺灣音樂家命名的分類",
+              0.04864802203579143
+            ],
+            [
+              "臺灣電視主持人",
+              0.04471306738037418
+            ],
+            [
+              "叱吒樂壇我最喜愛的歌曲得主",
+              0.035176987895887926
+            ],
+            [
+              "全球華語歌曲排行榜最受歡迎男歌手",
+              0.03386244943947794
+            ],
+            [
+              "金曲獎演奏類最佳專輯製作人獎獲得者",
+              0.03333042924853456
+            ],
+            [
+              "華語流行音樂歌手",
+              0.027811995551754405
+            ]
+          ],
+          "key": "周杰倫"
+        }
+        ```
 
 ### Break down into end to end tests
 
