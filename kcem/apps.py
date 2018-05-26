@@ -11,7 +11,7 @@ from opencc import OpenCC
 from functools import reduce
 from collections import defaultdict
 from kcem.utils.fullwidth2halfwidth import *
-import gensim, json, logging, math, pickle, os, psutil, subprocess
+import gensim, json, logging, math, pickle, os, psutil, subprocess, time
 import multiprocessing as mp
 
 openCC = OpenCC('s2t')
@@ -27,7 +27,7 @@ class KCEM(object):
 		self.dir = 'kcem_{}'.format(self.lang)
 		self.model = gensim.models.KeyedVectors.load_word2vec_format('med400.model.bin.{}'.format(self.lang), binary=True)
 		self.kcmObject = KCM(lang=self.lang, uri=uri)
-		self.cpus = math.ceil(mp.cpu_count() * 0.3)
+		self.cpus = math.ceil(mp.cpu_count() * 0.25)
 
 	def calculateProbability(self, kcmObject, keyword, category_set):
 		def toxinomic_score(keyword, category):
@@ -44,7 +44,8 @@ class KCEM(object):
 				return reduce(lambda x, y: x+y, scoreList)
 
 			def kcmScore():
-				keywordKcm = dict(((key, count) for key, pos, count in kcmObject.get(keyword, -1).get('value', [])))
+				# valueFlag is pos according to ttps://gist.github.com/luw2007/6016931
+				keywordKcm = dict(((key, count) for key, pos, count in kcmObject.get(keyword, -1, valueFlag=['n', 'nr', 'nr1', 'nr2', 'nrj', 'nrf', 'ns', 'nsf', 'nt', 'nz', 'nl', 'ng']).get('value', [])))
 				if keywordKcm:
 					keywordKcmTotal = sum(keywordKcm.values())
 					return reduce(lambda x,y:x+y, [(keywordKcm.get(term, 0) / keywordKcmTotal)**2 for term in jiebaCut])
@@ -93,14 +94,36 @@ class KCEM(object):
 	def build(self):
 		def categorylinks_query(page_id):
 			with connection.cursor() as cursor:
-				cursor.execute("SELECT * FROM categorylinks where cl_from = %s", [page_id])
-				try:
-					desc = [col[0] for col in cursor.description]
-					result = cursor.fetchall()
-					nt_result = namedtuple('Result', desc)
-				except Exception as e:
-					print(cursor.fetchall())
-					return []
+				while True:
+					try:
+						cursor.execute("SELECT * FROM categorylinks where cl_from = %s", [page_id])
+						try:
+							desc = [col[0] for col in cursor.description]
+							result = cursor.fetchall()
+							nt_result = namedtuple('Result', desc)
+							break
+						except Exception as e:
+							print('maybe cursor is None?')
+							print(cursor.fetchall())
+							cursor.close()
+							return []
+					except Exception as e:
+						print('Maybe db is too busy, sleep 60 s')
+						time.sleep(60)
+			return (nt_result(*row) for row in result)
+
+		def categorylinks_query(page_id):
+			with connection.cursor() as cursor:
+				while True:
+					try:
+						cursor.execute("SELECT * FROM categorylinks where cl_from = %s", [page_id])
+						desc = [col[0] for col in cursor.description]
+						result = cursor.fetchall()
+						nt_result = namedtuple('Result', desc)
+						break
+					except Exception as e:
+						print(str(e) + ' , sleep 60 seconds')
+						time.sleep(60)
 			return (nt_result(*row) for row in result)
 
 		def process_job(page_list):
@@ -130,11 +153,17 @@ class KCEM(object):
 					key=page_title,
 					value=json.dumps(value)
 				))
-				if len(insert_list) > 100000:
+				if len(insert_list) > 5000:
 					pickle.dump(insert_list, open(os.path.join(self.dir, '{}-{}.pkl'.format(process_id, index)), 'wb'))
 					insert_list = []
 			pickle.dump(insert_list, open(os.path.join(self.dir, '{}-{}.pkl'.format(process_id, index)), 'wb'))
 			logging.info('{} done'.format(process_id))
+
+		def merge_duplicate_key(enum_duplicate_key):
+			for index, key in enum_duplicate_key:
+				if index % 100:
+					logging.info('merge {} duplicate key {}'.format(index, key))
+					self.get(key)
 					
 		# empty table kcem_Hypernym first
 		Hypernym.objects.all().delete()
@@ -163,19 +192,27 @@ class KCEM(object):
 		# i don't know how to fix...
 		logging.info('start merge pickle files')
 		insert_list = []
+		num_of_concepts = set()
+		duplicate_key = {}
 		for pickle_file in os.listdir(self.dir):
 			if pickle_file.endswith('pkl'):
-				insert_list.extend(pickle.load(open(os.path.join(self.dir, pickle_file), 'rb')))
+				data = pickle.load(open(os.path.join(self.dir, pickle_file), 'rb'))
+				insert_list.extend(data)
+				num_of_concepts.update([category for item in data for category in json.loads(item.value)])
+				for item in data:
+					duplicate_key[item.key] = duplicate_key.get(item.key, 0) + 1
 				if psutil.virtual_memory().percent > 90:
 					Hypernym.objects.bulk_create(insert_list)
 					insert_list = []
-				elif len(insert_list) > 100000:
+				elif len(insert_list) > 5000:
 					Hypernym.objects.bulk_create(insert_list)
-					logging.info('finish insert 100000 rows')
+					logging.info('finish insert 5000 rows')
 					insert_list = []
 		Hypernym.objects.bulk_create(insert_list)
 
-		logging.info('finish kcem insert')
+		merge_duplicate_key(enumerate((key for key, value in duplicate_key.items() if value > 1)))
+
+		logging.info('finish kcem insert, there\'s {} concept in kcem model !'.format(len(num_of_concepts)))
 
 	def get(self, keyword):
 		try:

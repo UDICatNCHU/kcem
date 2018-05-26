@@ -1,6 +1,8 @@
 # kcem
 
-KCEM的class檔，可以透過 `pip` 直接安裝
+An Ontology tool kit which is based on [kcm](https://github.com/udicatnchu/new_kcm) and [kem](https://github.com/udicatnchu/kem)
+
+It has `311612` distinct concepts and `1221087` distinct concept-instances
 
 ## Info of Wiki Dumps
 
@@ -27,53 +29,40 @@ mysql>
 ```
 
 
-## Installing
+## Install
 
-1. `pip install kcem`
-2. `pip3 install git+git://github.com/yichen0831/opencc-python.git@master#egg=opencc-python`
-3. `pip3 install git+git://github.com/attardi/wikiextractor.git@2a5e6aebc030c936c7afd0c349e6826c4d02b871`
+* (Recommended): Use [docker-compose](https://github.com/udicatnchu/udic-nlp-api) to install
 
-## 
+## Manually Install
 
-## Running
+If you want to integrate `kcem` into your own django project, use manually install.
 
-### Commands
-
-1. buildDict: `python3 manage.py buildDict` will output a jieba dictionary named `wiki.dict.txt` from Wikipedia Hierarchy as data source.
-2. buildkcem: `python3 manage.py buildkcem` will calculate the best hypernym of each entity from Wikipedia.
-3. crawlWiki:
-    * `python3 manage.py crawlWiki --crawl=1`: Crawl all the page from Wikipedia and build Hierarchy.
-    * `python3 manage.py crawlWiki --fix=1`: Check and fix those missing nodes and entities crawled from Wikipedia.
-    * `python3 manage.py crawlWiki --disambiguation=1`: Crawl those sidambiguation pages from Wikipedia.
-4. loss: not yet.
+* `pip install kcem`
 
 ### Config
+Cause this is a django app
 
-1. `settings.py`裏面需要新增`kcem`這個app：
+so need to finish these django setups.
 
-  - add this:
+1. settings.py：
 
-    ```
-    INSTALLED_APPS=[
-    ...
-    ...
-    ...
-    'kcem',
-    ]
-    ```
+  ```
+  INSTALLED_APPS = [
+      'kcem'
+       ...
+  ]
+  ```
+2. urls.py：  
 
-2. `urls.py`需要新增下列代碼 把所有search開頭的request都導向到`kcem`這個app：
+  ```
+  import kcem.urls
+  urlpatterns += [
+      url(r'^kcem/', include(kcem.urls))
+  ]
+  ```
 
-  - add this:
-
-    ```
-    import kcem.urls
-    urlpatterns += [
-        url(r'^kcem/', include(kcem.urls))
-    ]
-    ```
-
-3. `python manage.py runserver`：即可進入頁面 `127.0.0.1:8000/kcem` 測試 `kcem` 是否安裝成功。
+3. `python3 manage.py buildkcem --lang <lang, e.g., zh or en or th>`
+4. fire `python manage.py runserver` and go `127.0.0.1:8000/` to check whether the config is all ok.
 
 ### Break down into end to end tests
 
@@ -86,16 +75,6 @@ usage: manage.py loss [--kcemMode KCEMMODE] [--ans ANS] [--output OUTPUT]
 * ans:a json file, which we crawled from Google's Ontology.
 * output:output file of kcem loss.
 * upperbound:Upper bound of kcm and kem parameters, need to be integer.
-
-## Deployment
-
-`kcem` is a django-app, so depends on django project.
-
-## Built With
-
-- simplejson
-- djangoApiDec,
-- pymongo,
 
 ## Contributors
 
