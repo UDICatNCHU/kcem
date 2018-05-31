@@ -3,7 +3,7 @@ from distutils.core import setup
 setup(
     name = 'kcem',
     packages = ['kcem'],
-    package_data={'kcem':['crawler/*', 'management/commands/*', 'utils/*', 'migrations/*']},
+    package_data={'kcem':['crawler/*', 'management/commands/*', 'utils/*', 'migrations/*', 'evaluation/*']},
     version = '6.4',
     description = 'kcem class file',
     author = 'davidtnfsh',
