@@ -6,7 +6,7 @@ from udic_nlp_API.settings_database import uri
 import json
 
 multilanguage_model = {
-    'zh': KCEM('zh', uri)
+    'zh': KCEM('zh', uri, ngram=True)
 }
 # Create your views here.
 @queryString_required(['keyword', 'lang'])

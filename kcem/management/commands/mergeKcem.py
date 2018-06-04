@@ -1,6 +1,7 @@
 from django.core.management.base import BaseCommand, CommandError
 from udic_nlp_API.settings_database import uri
 from kcem.apps import KCEM
+import pickle
 
 class Command(BaseCommand):
 	help = 'merge duplicate key of kcem'

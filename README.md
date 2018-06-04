@@ -137,17 +137,9 @@ so need to finish these django setups.
         }
         ```
 
-### Break down into end to end tests
+### Evaluate
 
-```
-usage: manage.py loss [--kcemMode KCEMMODE] [--ans ANS] [--output OUTPUT]
-                      [--upperbound UPPERBOUND]
-```
-
-* kcemMode:mode of kcem, you can choose one from `hybrid, w2v or kcem`.
-* ans:a json file, which we crawled from Google's Ontology.
-* output:output file of kcem loss.
-* upperbound:Upper bound of kcm and kem parameters, need to be integer.
+`python3 manage.py evaluate --lang <zh or other supported language>`
 
 ## Contributors
 

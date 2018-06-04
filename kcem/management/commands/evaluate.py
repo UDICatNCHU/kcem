@@ -5,13 +5,18 @@ from kcem.evaluation.label import label
 
 class Command(BaseCommand):
 	help = 'show precision of kcem'
+
+	def add_arguments(self, parser):
+		# Positional arguments
+		parser.add_argument('--lang', type=str)
 		
 	def handle(self, *args, **options):
-		k = KCEM(options['lang'], uri)
+		k = KCEM(options['lang'], uri, ngram=True)
 		total = len(label)
 		correct = 0
 		for key, value in label.items():
 			predict_raw = k.get(key)['value']
+			print(key, predict_raw[0][0], value)
 			if predict_raw:
 				predict = predict_raw[0][0]
 			else:

@@ -27,6 +27,8 @@ class Category(models.Model):
         managed = False
         db_table = 'category'
 
+    def __str__(self):
+        return self.cat_title
 
 class Categorylinks(models.Model):
     cl_from = models.IntegerField()
@@ -42,6 +44,8 @@ class Categorylinks(models.Model):
         db_table = 'categorylinks'
         unique_together = (('cl_from', 'cl_to'),)
 
+    def __str__(self):
+        return '{}-{}'.format(str(self.cl_from), self.cl_to)
 
 class Page(models.Model):
     page_id = models.AutoField(primary_key=True)
@@ -65,7 +69,7 @@ class Page(models.Model):
         unique_together = (('page_namespace', 'page_title'),)
 
     def __str__(self):
-        return '({}) {}'.format(self.page_id, self.page_title)
+        return '{}-{}'.format(str(self.page_id), self.page_title.decode('utf-8'))
 
 
 class Pagelinks(models.Model):
@@ -79,6 +83,8 @@ class Pagelinks(models.Model):
         db_table = 'pagelinks'
         unique_together = (('pl_from', 'pl_namespace', 'pl_title'),)
 
+    def __str__(self):
+        return '{}-{}'.format(str(self.pl_from), self.pl_title)
 
 class Redirect(models.Model):
     rd_from = models.IntegerField(primary_key=True)
@@ -90,3 +96,6 @@ class Redirect(models.Model):
     class Meta:
         managed = False
         db_table = 'redirect'
+
+    def __str__(self):
+        return '{}-{}'.format(str(self.rd_from), self.rd_title)

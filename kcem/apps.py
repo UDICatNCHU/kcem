@@ -13,6 +13,7 @@ from collections import defaultdict
 from kcem.utils.fullwidth2halfwidth import *
 import gensim, json, logging, math, pickle, os, psutil, subprocess, time
 import multiprocessing as mp
+from ngram import NGram
 
 openCC = OpenCC('s2t')
 logging.basicConfig(format='%(levelname)s : %(asctime)s : %(message)s', filename='buildKCEM.log', level=logging.INFO)
@@ -22,12 +23,15 @@ class KcemConfig(AppConfig):
 
 class KCEM(object):
 	"""docstring for KCEM"""
-	def __init__(self, lang, uri=uri):
+	def __init__(self, lang='zh', uri=uri, ngram=False, cpus=6):
 		self.lang = lang
 		self.dir = 'kcem_{}'.format(self.lang)
 		self.model = gensim.models.KeyedVectors.load_word2vec_format('med400.model.bin.{}'.format(self.lang), binary=True)
 		self.kcmObject = KCM(lang=self.lang, uri=uri)
-		self.cpus = math.ceil(mp.cpu_count() * 0.25)
+		self.cpus = cpus
+
+		if ngram:
+			self.kcemNgram = NGram( ( i['key'] for i in Hypernym.objects.values('key') ) )
 
 	def calculateProbability(self, kcmObject, keyword, category_set):
 		def toxinomic_score(keyword, category):
@@ -108,21 +112,7 @@ class KCEM(object):
 							cursor.close()
 							return []
 					except Exception as e:
-						print('Maybe db is too busy, sleep 60 s')
-						time.sleep(60)
-			return (nt_result(*row) for row in result)
-
-		def categorylinks_query(page_id):
-			with connection.cursor() as cursor:
-				while True:
-					try:
-						cursor.execute("SELECT * FROM categorylinks where cl_from = %s", [page_id])
-						desc = [col[0] for col in cursor.description]
-						result = cursor.fetchall()
-						nt_result = namedtuple('Result', desc)
-						break
-					except Exception as e:
-						print(str(e) + ' , sleep 60 seconds')
+						print('Error:{}, Maybe db is too busy, sleep 60 s'.format(e))
 						time.sleep(60)
 			return (nt_result(*row) for row in result)
 
@@ -158,12 +148,6 @@ class KCEM(object):
 					insert_list = []
 			pickle.dump(insert_list, open(os.path.join(self.dir, '{}-{}.pkl'.format(process_id, index)), 'wb'))
 			logging.info('{} done'.format(process_id))
-
-		def merge_duplicate_key(enum_duplicate_key):
-			for index, key in enum_duplicate_key:
-				if index % 100:
-					logging.info('merge {} duplicate key {}'.format(index, key))
-					self.get(key)
 					
 		# empty table kcem_Hypernym first
 		Hypernym.objects.all().delete()
@@ -210,39 +194,54 @@ class KCEM(object):
 					insert_list = []
 		Hypernym.objects.bulk_create(insert_list)
 
-		merge_duplicate_key(enumerate((key for key, value in duplicate_key.items() if value > 1)))
-
+		pickle.dump((key for key, value in duplicate_key.items() if value > 1), open('duplicate_key_{}.pkl'.format(self.lang), 'wb'))
 		logging.info('finish kcem insert, there\'s {} concept in kcem model !'.format(len(num_of_concepts)))
 
 	def get(self, keyword):
-		try:
-			return {
-				'key':keyword,
-				'value':sorted(json.loads(Hypernym.objects.get(key=keyword).value).items(), key=lambda x:-x[1])
-			}
-		except Exception as e:
-			############## MySQL Bug ####################	
-			# the original Hypernym schema is:
-			# class Hypernym(models.Model):
-			#     key = models.CharField(primary_key=True, max_length=255)
-			#     value = models.TextField()
-			# However, MySQK take ñ = n, so when i do bulk_create 	
-			# it would occur Duplicate Key Error 	
-			# but i don't know how to set the right binary comparison in MySQL
-			# so cancel primary_key=True of Hypernym schema
-			# and fix these problem using try/except in get function....
-			############## MySQL Bug ####################
-			hypernyms = Hypernym.objects.filter(key=keyword)
+		if keyword in self.kcemNgram:
+			try:
+				return {
+					'key': keyword,
+					'origin': keyword,
+					'similarity': 1,
+					'value':sorted(json.loads(Hypernym.objects.get(key=keyword).value).items(), key=lambda x:-x[1])
+				}
+			except Exception as e:
+				############## MySQL Bug ####################	
+				# the original Hypernym schema is:
+				# class Hypernym(models.Model):
+				#     key = models.CharField(primary_key=True, max_length=255)
+				#     value = models.TextField()
+				# However, MySQK take ñ = n, so when i do bulk_create 	
+				# it would occur Duplicate Key Error 	
+				# but i don't know how to set the right binary comparison in MySQL
+				# so cancel primary_key=True of Hypernym schema
+				# and fix these problem using try/except in get function....
+				############## MySQL Bug ####################
+				pass
 
-			category_set = set()
-			for h in hypernyms:
-				for category in json.loads(h.value):
-					category_set.add(category)
-
-			value = self.calculateProbability(self.kcmObject, keyword, category_set)
-			Hypernym.objects.filter(key=keyword).delete()
-			Hypernym.objects.create(key=keyword, value=json.dumps(value))
+		ngram_keyword = self.kcemNgram.find(keyword)
+		if not ngram_keyword:
 			return {
-				'key': keyword,
-				'value':sorted(value.items(), key=lambda x:-x[1])
+				'key': ngram_keyword,
+				'origin': keyword,
+				'similarity': self.kcemNgram.compare(keyword, ngram_keyword),
+				'value':[]
 			}
+
+		hypernyms = Hypernym.objects.filter(key=ngram_keyword)
+
+		category_set = set()
+		for h in hypernyms:
+			for category in json.loads(h.value):
+				category_set.add(category)
+
+		value = self.calculateProbability(self.kcmObject, ngram_keyword, category_set)
+		Hypernym.objects.filter(key=ngram_keyword).delete()
+		Hypernym.objects.create(key=ngram_keyword, value=json.dumps(value))
+		return {
+			'key': ngram_keyword,
+			'origin':keyword,
+			'similarity':self.kcemNgram.compare(keyword, ngram_keyword),
+			'value':sorted(value.items(), key=lambda x:-x[1])
+		}
