@@ -27,7 +27,7 @@ class KCEM(object):
 		self.lang = lang
 		self.dir = 'kcem_{}'.format(self.lang)
 		self.model = gensim.models.KeyedVectors.load_word2vec_format('med400.model.bin.{}'.format(self.lang), binary=True)
-		self.kcmObject = KCM(lang=self.lang, uri=uri)
+		self.kcmObject = KCM(lang=self.lang, uri=uri, ngram=True)
 		self.cpus = cpus
 
 		if ngram:
@@ -194,7 +194,7 @@ class KCEM(object):
 					insert_list = []
 		Hypernym.objects.bulk_create(insert_list)
 
-		pickle.dump((key for key, value in duplicate_key.items() if value > 1), open('duplicate_key_{}.pkl'.format(self.lang), 'wb'))
+		pickle.dump([key for key, value in duplicate_key.items() if value > 1], open('duplicate_key_{}.pkl'.format(self.lang), 'wb'))
 		logging.info('finish kcem insert, there\'s {} concept in kcem model !'.format(len(num_of_concepts)))
 
 	def get(self, keyword):
