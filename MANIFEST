@@ -9,7 +9,14 @@ kcem/models.py
 kcem/tests.py
 kcem/urls.py
 kcem/views.py
+kcem/evaluation/__init__.py
+kcem/evaluation/answer.json
+kcem/evaluation/bug
+kcem/evaluation/label.py
+kcem/evaluation/matplot.py
 kcem/management/commands/buildkcem.py
+kcem/management/commands/evaluate.py
+kcem/management/commands/mergeKcem.py
 kcem/migrations/0001_initial.py
 kcem/migrations/__init__.py
 kcem/utils/fullwidth2halfwidth.py

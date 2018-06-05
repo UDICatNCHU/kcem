@@ -14,6 +14,7 @@ from kcem.utils.fullwidth2halfwidth import *
 import gensim, json, logging, math, pickle, os, psutil, subprocess, time
 import multiprocessing as mp
 from ngram import NGram
+from django.db.utils import ProgrammingError
 
 openCC = OpenCC('s2t')
 logging.basicConfig(format='%(levelname)s : %(asctime)s : %(message)s', filename='buildKCEM.log', level=logging.INFO)
@@ -31,8 +32,10 @@ class KCEM(object):
 		self.cpus = cpus
 
 		if ngram:
-			self.kcemNgram = NGram( ( i['key'] for i in Hypernym.objects.values('key') ) )
-
+			try:
+				self.kcemNgram = NGram( ( i['key'] for i in Hypernym.objects.values('key') ) )
+			except ProgrammingError as e:
+				print(str(e)+', if this happened in building steps, then ignore it!')
 	def calculateProbability(self, kcmObject, keyword, category_set):
 		def toxinomic_score(keyword, category):
 			jiebaCut = jieba.lcut(category, cut_all=True)
@@ -118,7 +121,7 @@ class KCEM(object):
 
 		def process_job(page_list):
 			insert_list = []
-			kcmObject = KCM(lang=self.lang, uri=uri)
+			kcmObject = KCM(lang=self.lang, uri=uri, ngram=True)
 			process_id = os.getpid()
 			for index, page in enumerate(page_list):
 				page_id = page.page_id
