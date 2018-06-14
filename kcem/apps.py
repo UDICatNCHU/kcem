@@ -27,7 +27,10 @@ class KCEM(object):
 	def __init__(self, lang='zh', uri=uri, ngram=False, cpus=6):
 		self.lang = lang
 		self.dir = 'kcem_{}'.format(self.lang)
-		self.model = gensim.models.KeyedVectors.load_word2vec_format('med400.model.bin.{}'.format(self.lang), binary=True)
+		# because med400.model.bin.{}.True, aka using ontology to train a new word2vec
+		# relies on kcem. So when building kcem mode, we only have med400.model.bin.{}.False to use
+		# After that, we can use kcem to build med400.model.bin.{}.True
+		self.model = gensim.models.KeyedVectors.load_word2vec_format('med400.model.bin.{}.False'.format(self.lang), binary=True)
 		self.kcmObject = KCM(lang=self.lang, uri=uri, ngram=True)
 		self.cpus = cpus
 
