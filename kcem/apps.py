@@ -5,16 +5,16 @@ from kcm import KCM
 from udic_nlp_API.settings_database import uri
 from udicOpenData.dictionary import *
 from kcem.models import *
-from django.db import connection
+from django.db import connection, connections
 from collections import namedtuple
 from opencc import OpenCC
 from functools import reduce
 from collections import defaultdict
 from kcem.utils.fullwidth2halfwidth import *
-import gensim, json, logging, math, pickle, os, psutil, subprocess, time
+import gensim, json, logging, math, pickle, os, psutil, subprocess, time, pymysql
 import multiprocessing as mp
 from ngram import NGram
-from django.db.utils import ProgrammingError
+from django.db.utils import ProgrammingError, OperationalError
 
 openCC = OpenCC('s2t')
 logging.basicConfig(format='%(levelname)s : %(asctime)s : %(message)s', filename='buildKCEM.log', level=logging.INFO)
@@ -39,6 +39,8 @@ class KCEM(object):
 				self.kcemNgram = NGram( ( i['key'] for i in Hypernym.objects.values('key') ) )
 			except ProgrammingError as e:
 				print(str(e)+', if this happened in building steps, then ignore it!')
+
+
 	def calculateProbability(self, kcmObject, keyword, category_set):
 		def toxinomic_score(keyword, category):
 			jiebaCut = jieba.lcut(category, cut_all=True)
@@ -102,9 +104,15 @@ class KCEM(object):
 
 
 	def build(self):
-		def categorylinks_query(page_id):
-			with connection.cursor() as cursor:
-				while True:
+
+		def process_job(page_list):
+			# cause database connection is not thread-safe
+			# so need to create their own connection object in each process
+			databases = connections.databases
+			cursor = pymysql.connect(connections.databases['default']['HOST'], connections.databases['default']['USER'], connections.databases['default']['PASSWORD'], connections.databases['default']['NAME']).cursor()
+
+			def categorylinks_query(cursor, page_id):
+				for iterate in range(10):
 					try:
 						cursor.execute("SELECT * FROM categorylinks where cl_from = %s", [page_id])
 						try:
@@ -118,11 +126,12 @@ class KCEM(object):
 							cursor.close()
 							return []
 					except Exception as e:
-						print('Error:{}, Maybe db is too busy, sleep 60 s'.format(e))
+						print('Error:{} page_id:{} Maybe db is too busy, sleep 60 s'.format(e, page_id))
+						if iterate == 9:
+							return []
 						time.sleep(60)
-			return (nt_result(*row) for row in result)
-
-		def process_job(page_list):
+				return (nt_result(*row) for row in result)
+			
 			insert_list = []
 			kcmObject = KCM(lang=self.lang, uri=uri, ngram=True)
 			process_id = os.getpid()
@@ -134,7 +143,7 @@ class KCEM(object):
 				# turn fullwidth to halfwidth to prevent it from having Duplicate Key again...
 				page_title = f2h(page_title)
 				category_set = set()
-				for category in categorylinks_query(page_id):
+				for category in categorylinks_query(cursor, page_id):
 					category = openCC.convert(category.cl_to.decode('utf-8'))
 					category_set.add(category)
 
@@ -152,11 +161,14 @@ class KCEM(object):
 				if len(insert_list) > 5000:
 					pickle.dump(insert_list, open(os.path.join(self.dir, '{}-{}.pkl'.format(process_id, index)), 'wb'))
 					insert_list = []
+
+			# there's some other data in buffer, so flush it into pkl file
 			pickle.dump(insert_list, open(os.path.join(self.dir, '{}-{}.pkl'.format(process_id, index)), 'wb'))
+
+			# close cursor of this process
+			cursor.close()
 			logging.info('{} done'.format(process_id))
 					
-		# empty table kcem_Hypernym first
-		Hypernym.objects.all().delete()
 
 		if not os.path.exists(os.path.join(self.dir, 'done')):
 			# create self.dir to store kcem pickle
@@ -167,7 +179,6 @@ class KCEM(object):
 			amount = math.ceil(len(page_list)/self.cpus)
 			page_list = [page_list[i:i + amount] for i in range(0, len(page_list), amount)]
 			processes = [mp.Process(target=process_job, kwargs={'page_list':page_list[i]}) for i in range(self.cpus)]
-
 			for process in processes:
 				process.start()
 			for process in processes:
@@ -182,15 +193,29 @@ class KCEM(object):
 		# i don't know how to fix...
 		logging.info('start merge pickle files')
 		insert_list = []
+
+		try:
+			# empty table kcem_Hypernym first
+			Hypernym.objects.all().delete()
+		except OperationalError:
+			connection.close()
+			Hypernym.objects.all().delete()
+
 		num_of_concepts = set()
 		duplicate_key = {}
 		for pickle_file in os.listdir(self.dir):
 			if pickle_file.endswith('pkl'):
 				data = pickle.load(open(os.path.join(self.dir, pickle_file), 'rb'))
 				insert_list.extend(data)
+
+				# calculate how many concepts are there in this kcem model
 				num_of_concepts.update([category for item in data for category in json.loads(item.value)])
+
+				# duplicate key need to be merge later
 				for item in data:
 					duplicate_key[item.key] = duplicate_key.get(item.key, 0) + 1
+
+				# insert
 				if psutil.virtual_memory().percent > 90:
 					Hypernym.objects.bulk_create(insert_list)
 					insert_list = []
@@ -198,6 +223,7 @@ class KCEM(object):
 					Hypernym.objects.bulk_create(insert_list)
 					logging.info('finish insert 5000 rows')
 					insert_list = []
+		# insert the rest of insert_list
 		Hypernym.objects.bulk_create(insert_list)
 
 		pickle.dump([key for key, value in duplicate_key.items() if value > 1], open('duplicate_key_{}.pkl'.format(self.lang), 'wb'))
@@ -250,4 +276,4 @@ class KCEM(object):
 			'origin':keyword,
 			'similarity':self.kcemNgram.compare(keyword, ngram_keyword),
 			'value':sorted(value.items(), key=lambda x:-x[1])
-		}
+		}		
