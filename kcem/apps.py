@@ -36,10 +36,11 @@ class KCEM(object):
 
 		if ngram:
 			try:
-				self.kcemNgram = NGram( ( i['key'] for i in Hypernym.objects.values('key') ) )
+				self.kcemNgram = pickle.load(open('kcem_ngram.{}.pkl'.format(self.lang), 'rb'))
 			except ProgrammingError as e:
 				print(str(e)+', if this happened in building steps, then ignore it!')
-
+			except FileNotFoundError as e:
+				print(str(e)+', if this happened in building steps, then ignore it!')
 
 	def calculateProbability(self, kcmObject, keyword, category_set):
 		def toxinomic_score(keyword, category):
@@ -227,6 +228,7 @@ class KCEM(object):
 		Hypernym.objects.bulk_create(insert_list)
 
 		pickle.dump([key for key, value in duplicate_key.items() if value > 1], open('duplicate_key_{}.pkl'.format(self.lang), 'wb'))
+		pickle.dump(NGram( ( i['key'] for i in Hypernym.objects.values('key') ) ), open('kcem_ngram.{}.pkl'.format(self.lang), 'wb'))
 		logging.info('finish kcem insert, there\'s {} concept in kcem model !'.format(len(num_of_concepts)))
 
 	def get(self, keyword):
