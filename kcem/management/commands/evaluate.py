@@ -15,8 +15,9 @@ class Command(BaseCommand):
 		total = len(label)
 		correct = 0
 		for key, value in label.items():
-			predict_raw = k.get(key)['value']
-			print(key, predict_raw[0][0], value)
+			result = k.get(key)
+			predict_raw = result['value']
+			print(key, result, value)
 			if predict_raw:
 				predict = predict_raw[0][0]
 			else:

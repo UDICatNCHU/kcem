@@ -27,15 +27,17 @@ class KCEM(object):
 	def __init__(self, lang='zh', uri=uri, ngram=False, cpus=6):
 		self.lang = lang
 		self.dir = 'kcem_{}'.format(self.lang)
-		self.model = gensim.models.KeyedVectors.load_word2vec_format('med400.model.bin.{}'.format(self.lang), binary=True)
+		self.model = gensim.models.KeyedVectors.load_word2vec_format('med400.model.bin.{}.False'.format(self.lang), binary=True)
 		self.kcmObject = KCM(lang=self.lang, uri=uri, ngram=True)
 		self.cpus = cpus
+		self.ngram = ngram
 
-		if ngram:
+		if self.ngram:
 			try:
-				self.kcemNgram = NGram( ( i['key'] for i in Hypernym.objects.values('key') ) )
-			except ProgrammingError as e:
+				self.kcemNgram = NGram(pickle.load(open('kcem_ngram.{}.pkl'.format(self.lang), 'rb')))
+			except FileNotFoundError as e:
 				print(str(e)+', if this happened in building steps, then ignore it!')
+
 	def calculateProbability(self, kcmObject, keyword, category_set):
 		def toxinomic_score(keyword, category):
 			jiebaCut = jieba.lcut(category, cut_all=True)
@@ -60,9 +62,17 @@ class KCEM(object):
 					return 0
 
 			def harmonic_mean():
-				cosine, kcm = similarityScore() , kcmScore()
+				'''
+				formula:
+					2 * kcmScore x similarityScore
+					______________________________
+					    kcmScore + similarityScore
+				'''
+
+				denominator = len(jiebaCut)
+				cosine, kcm = similarityScore()/denominator , kcmScore()/denominator
 				if cosine and kcm:
-					return 2 * (cosine/len(jiebaCut) * kcm/len(jiebaCut)) / (cosine/len(jiebaCut) + kcm/len(jiebaCut))
+					return 2 * cosine * kcm / (cosine + kcm)
 				else:
 					return 0
 
@@ -95,19 +105,24 @@ class KCEM(object):
 					candidate[k] = v / summation
 			return candidate
 
-		return minMaxNormalization({category:toxinomic_score(keyword, category) for category in category_set})
+		value = minMaxNormalization({category:toxinomic_score(keyword, category) for category in category_set})
+		# Explanation：key=lambda x:(-x[1], len(x[0]))
+		# use score as top priority, if score ties then prefer hypernym with less length.
+		return sorted(value.items(), key=lambda x:(-x[1], len(x[0])))
 
 
 	def build(self):
 		def categorylinks_query(page_id):
 			with connection.cursor() as cursor:
-				while True:
+				correct = True
+				for _ in range(3):
 					try:
 						cursor.execute("SELECT * FROM categorylinks where cl_from = %s", [page_id])
 						try:
 							desc = [col[0] for col in cursor.description]
 							result = cursor.fetchall()
 							nt_result = namedtuple('Result', desc)
+							correct = True
 							break
 						except Exception as e:
 							print('maybe cursor is None?')
@@ -115,25 +130,39 @@ class KCEM(object):
 							cursor.close()
 							return []
 					except Exception as e:
-						print('Error:{}, Maybe db is too busy, sleep 60 s'.format(e))
+						correct = False
+						print('Page id:{}, Iterate times:{}, Error:{}, Maybe db is too busy, sleep 60 s'.format(page_id, str(_), e))
 						time.sleep(60)
+			if not correct:
+				return []
 			return (nt_result(*row) for row in result)
 
 		def process_job(page_list):
+			def get_category(category_set, page_id):
+				for category in categorylinks_query(page_id):
+					category = category.cl_to
+					category_set.add(category)
+				return category_set
+
 			insert_list = []
 			kcmObject = KCM(lang=self.lang, uri=uri, ngram=True)
 			process_id = os.getpid()
 			for index, page in enumerate(page_list):
 				page_id = page.page_id
-				# turn it into lower case or it'll raise Duplicate Key in DB
-				page_title = openCC.convert(page.page_title.decode('utf-8')).lower()
-
-				# turn fullwidth to halfwidth to prevent it from having Duplicate Key again...
-				page_title = f2h(page_title)
+				page_title = page.page_title
 				category_set = set()
-				for category in categorylinks_query(page_id):
-					category = openCC.convert(category.cl_to.decode('utf-8'))
-					category_set.add(category)
+				category_set = get_category(category_set, page_id)
+
+				# if page_title itself appears in category_set, remove it.
+				# Because it makes no sense if there's someone asking what is page_title and you answer page_title is a kind of page_title ...
+				# And to be noticed, this situation only occurs when page_title also has a category name page_title
+				# so i add hypernyms of Category page_title into category set
+				# and then start calculateProbability()
+				if page_title in category_set:
+					category_set.remove(page_title)
+					print(page_title)
+					category_id = Page.objects.get(page_title=page_title, page_namespace=14).page_id
+					category_set = get_category(category_set, category_id)
 
 				if not category_set:
 					# this kind of error comes from redirect page
@@ -141,6 +170,15 @@ class KCEM(object):
 					# 1. https://zh.wikipedia.org/w/index.php?title=%E7%A3%81%E5%81%8F%E8%A7%92&redirect=no
 					# 2. https://zh.wikipedia.org/zh-tw/%E5%9C%B0%E7%A3%81%E5%81%8F%E8%A7%92
 					continue
+
+				############################## ZH settings############################
+				# turn it into lower case or it'll raise Duplicate Key in DB
+				page_title = openCC.convert(page_title.decode('utf-8', 'ignore')).lower()
+				# turn fullwidth to halfwidth to prevent it from having Duplicate Key again...
+				page_title = f2h(page_title)
+				category_set = {openCC.convert(category.decode('utf-8', 'ignore')) for category in category_set}
+				######################################################################
+
 				value = self.calculateProbability(kcmObject, page_title, category_set)
 				insert_list.append(Hypernym(
 					key=page_title,
@@ -198,53 +236,71 @@ class KCEM(object):
 		Hypernym.objects.bulk_create(insert_list)
 
 		pickle.dump([key for key, value in duplicate_key.items() if value > 1], open('duplicate_key_{}.pkl'.format(self.lang), 'wb'))
+		pickle.dump(NGram( ( i['key'] for i in Hypernym.objects.values('key') ) ), open('kcem_ngram.{}.pkl'.format(self.lang), 'wb'))
 		logging.info('finish kcem insert, there\'s {} concept in kcem model !'.format(len(num_of_concepts)))
 
+	def find_trash_category(self):
+		with connection.cursor() as cursor:
+			correct = True
+			cursor.execute("SELECT * FROM categorylinks where cl_to = '總類'")
+			desc = [col[0] for col in cursor.description]
+			result = cursor.fetchall()
+			nt_result = namedtuple('Result', desc)
+		return (nt_result(*row) for row in result)
+
 	def get(self, keyword):
-		if keyword in self.kcemNgram:
-			try:
+		try:
+			############## MySQL Bug ####################	
+			# the original Hypernym schema is:
+			# class Hypernym(models.Model):
+			#     key = models.CharField(primary_key=True, max_length=255)
+			#     value = models.TextField()
+			# However, MySQK take ñ = n, so when i do bulk_create 	
+			# it would occur Duplicate Key Error 	
+			# but i don't know how to set the right binary comparison in MySQL
+			# so cancel primary_key=True of Hypernym schema
+			# and fix these problem using try/except in get function....
+
+			# There's two condition will raise exception 
+			# 1. As i mentioned above, the keyword you query just like ñ = n, Hypernym.objects.get would return multiple result which will cause error. So merge the result manually in exception block
+			# 2. The keyword you queried didn't exist in DB, so use ngram to find result with the similarest query
+			############## MySQL Bug ####################
+			return {
+				'key': keyword,
+				'origin': keyword,
+				'similarity': 1,
+				'value':json.loads(Hypernym.objects.get(key=keyword).value)
+			}
+		except Exception as e:
+			if self.ngram == False:
 				return {
 					'key': keyword,
 					'origin': keyword,
 					'similarity': 1,
-					'value':sorted(json.loads(Hypernym.objects.get(key=keyword).value).items(), key=lambda x:-x[1])
+					'value':[]
 				}
-			except Exception as e:
-				############## MySQL Bug ####################	
-				# the original Hypernym schema is:
-				# class Hypernym(models.Model):
-				#     key = models.CharField(primary_key=True, max_length=255)
-				#     value = models.TextField()
-				# However, MySQK take ñ = n, so when i do bulk_create 	
-				# it would occur Duplicate Key Error 	
-				# but i don't know how to set the right binary comparison in MySQL
-				# so cancel primary_key=True of Hypernym schema
-				# and fix these problem using try/except in get function....
-				############## MySQL Bug ####################
-				pass
+			ngram_keyword = self.kcemNgram.find(keyword)
+			if not ngram_keyword:
+				return {
+					'key': ngram_keyword,
+					'origin': keyword,
+					'similarity': self.kcemNgram.compare(keyword, ngram_keyword),
+					'value':[]
+				}
 
-		ngram_keyword = self.kcemNgram.find(keyword)
-		if not ngram_keyword:
+			hypernyms = Hypernym.objects.filter(key=ngram_keyword)
+
+			category_set = set()
+			for h in hypernyms:
+				for category in json.loads(h.value):
+					category_set.add(category)
+
+			value = self.calculateProbability(self.kcmObject, ngram_keyword, category_set)
+			Hypernym.objects.filter(key=ngram_keyword).delete()
+			Hypernym.objects.create(key=ngram_keyword, value=json.dumps(value))
 			return {
 				'key': ngram_keyword,
-				'origin': keyword,
-				'similarity': self.kcemNgram.compare(keyword, ngram_keyword),
-				'value':[]
+				'origin':keyword,
+				'similarity':self.kcemNgram.compare(keyword, ngram_keyword),
+				'value':value
 			}
-
-		hypernyms = Hypernym.objects.filter(key=ngram_keyword)
-
-		category_set = set()
-		for h in hypernyms:
-			for category in json.loads(h.value):
-				category_set.add(category)
-
-		value = self.calculateProbability(self.kcmObject, ngram_keyword, category_set)
-		Hypernym.objects.filter(key=ngram_keyword).delete()
-		Hypernym.objects.create(key=ngram_keyword, value=json.dumps(value))
-		return {
-			'key': ngram_keyword,
-			'origin':keyword,
-			'similarity':self.kcemNgram.compare(keyword, ngram_keyword),
-			'value':sorted(value.items(), key=lambda x:-x[1])
-		}

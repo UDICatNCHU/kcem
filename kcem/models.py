@@ -47,6 +47,19 @@ class Categorylinks(models.Model):
     def __str__(self):
         return '{}-{}'.format(str(self.cl_from), self.cl_to)
 
+class Categorylinksnew(models.Model):
+    id = models.AutoField(primary_key=True)
+    cl_from = models.IntegerField()
+    cl_to = models.CharField(max_length=800)
+    cl_sortkey = models.CharField(max_length=1000)
+    cl_timestamp = models.DateTimeField()
+    cl_sortkey_prefix = models.CharField(max_length=1000)
+    cl_collation = models.CharField(max_length=10)
+    cl_type = models.CharField(max_length=6)
+    
+    def __str__(self):
+        return '{}-{}'.format(str(self.cl_from), self.cl_to)
+
 class Page(models.Model):
     page_id = models.AutoField(primary_key=True)
     page_namespace = models.IntegerField()
