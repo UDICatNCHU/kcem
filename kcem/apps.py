@@ -64,11 +64,18 @@ class KCEM(object):
 					return reduce(lambda x,y:x+y, [(keywordKcm.get(term, 0) / keywordKcmTotal)**2 for term in jiebaCut])
 				else:
 					return 0
-
 			def harmonic_mean():
-				cosine, kcm = similarityScore() , kcmScore()
+				'''
+				formula:
+					2 * kcmScore x similarityScore
+					______________________________
+					    kcmScore + similarityScore
+				'''
+
+				denominator = len(jiebaCut)
+				cosine, kcm = similarityScore()/denominator , kcmScore()/denominator
 				if cosine and kcm:
-					return 2 * (cosine/len(jiebaCut) * kcm/len(jiebaCut)) / (cosine/len(jiebaCut) + kcm/len(jiebaCut))
+					return 2 * cosine * kcm / (cosine + kcm)
 				else:
 					return 0
 
@@ -101,7 +108,10 @@ class KCEM(object):
 					candidate[k] = v / summation
 			return candidate
 
-		return minMaxNormalization({category:toxinomic_score(keyword, category) for category in category_set})
+		value = minMaxNormalization({category:toxinomic_score(keyword, category) for category in category_set})
+		# Explanation：key=lambda x:(-x[1], len(x[0]))
+		# use score as top priority, if score ties then prefer hypernym with less length.
+		return sorted(value.items(), key=lambda x:(-x[1], len(x[0])))
 
 
 	def build(self):
@@ -238,7 +248,7 @@ class KCEM(object):
 					'key': keyword,
 					'origin': keyword,
 					'similarity': 1,
-					'value':sorted(json.loads(Hypernym.objects.get(key=keyword).value).items(), key=lambda x:-x[1])
+					'value':json.loads(Hypernym.objects.get(key=keyword).value)
 				}
 			except Exception as e:
 				############## MySQL Bug ####################	
@@ -277,5 +287,14 @@ class KCEM(object):
 			'key': ngram_keyword,
 			'origin':keyword,
 			'similarity':self.kcemNgram.compare(keyword, ngram_keyword),
-			'value':sorted(value.items(), key=lambda x:-x[1])
-		}		
+			'value':value
+		}
+
+	def find_trash_category(self):
+		with connection.cursor() as cursor:
+			correct = True
+			cursor.execute("SELECT * FROM categorylinks where cl_to = '總類'")
+			desc = [col[0] for col in cursor.description]
+			result = cursor.fetchall()
+			nt_result = namedtuple('Result', desc)
+		return (nt_result(*row) for row in result)	
