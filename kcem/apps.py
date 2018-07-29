@@ -10,7 +10,7 @@ from collections import namedtuple
 from opencc import OpenCC
 from functools import reduce
 from collections import defaultdict
-from kcem.utils.fullwidth2halfwidth import *
+from kcem.utils.fullwidth2halfwidth import f2h
 import gensim, json, logging, math, pickle, os, psutil, subprocess, time, pymysql
 import multiprocessing as mp
 from ngram import NGram
@@ -84,7 +84,13 @@ class KCEM(object):
 			# Use Min-max normalization
 			# 因為最後輸出的值為機率，而機率不能是負的
 			# 所以先透過min-max轉成0~1的數值範圍
-			M, m = max(candidate.items(), key=lambda x:x[1])[1], min(candidate.items(), key=lambda x:x[1])[1]
+			try:
+				M, m = max(candidate.items(), key=lambda x:x[1])[1], min(candidate.items(), key=lambda x:x[1])[1]
+			except Exception as e:
+				print('=================================')
+				print(keyword, category_set)
+				print(e)
+				print('=================================')
 			if M == m or len(candidate) == 0:
 				M, m = 1, 0
 
@@ -113,24 +119,10 @@ class KCEM(object):
 			cursor = pymysql.connect(connections.databases['default']['HOST'], connections.databases['default']['USER'], connections.databases['default']['PASSWORD'], connections.databases['default']['NAME']).cursor()
 
 			def categorylinks_query(cursor, page_id):
-				for iterate in range(10):
-					try:
-						cursor.execute("SELECT * FROM categorylinks where cl_from = %s", [page_id])
-						try:
-							desc = [col[0] for col in cursor.description]
-							result = cursor.fetchall()
-							nt_result = namedtuple('Result', desc)
-							break
-						except Exception as e:
-							print('maybe cursor is None?')
-							print(cursor.fetchall())
-							cursor.close()
-							return []
-					except Exception as e:
-						print('Error:{} page_id:{} Maybe db is too busy, sleep 60 s'.format(e, page_id))
-						if iterate == 9:
-							return []
-						time.sleep(60)
+				cursor.execute("SELECT * FROM categorylinks where cl_from = %s", [page_id])
+				desc = [col[0] for col in cursor.description]
+				result = cursor.fetchall()
+				nt_result = namedtuple('Result', desc)
 				return (nt_result(*row) for row in result)
 			
 			insert_list = []
@@ -278,4 +270,4 @@ class KCEM(object):
 			'origin':keyword,
 			'similarity':self.kcemNgram.compare(keyword, ngram_keyword),
 			'value':sorted(value.items(), key=lambda x:-x[1])
-		}		
+		}
