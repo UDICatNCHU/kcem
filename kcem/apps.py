@@ -291,10 +291,20 @@ class KCEM(object):
 		}
 
 	def find_trash_category(self):
-		with connection.cursor() as cursor:
-			correct = True
-			cursor.execute("SELECT * FROM categorylinks where cl_to = '總類'")
-			desc = [col[0] for col in cursor.description]
-			result = cursor.fetchall()
-			nt_result = namedtuple('Result', desc)
-		return (nt_result(*row) for row in result)	
+		def top_down(hypernym):
+			with connection.cursor() as cursor:
+				cursor.execute("SELECT * FROM categorylinks where cl_to = %s ", [hypernym])
+				desc = [col[0] for col in cursor.description]
+				result = cursor.fetchall()
+				nt_result = namedtuple('Result', desc)
+			return [nt_result(*row) for row in result]
+
+		trash_category_table = {
+			'zh':'總類'
+		}
+		hyponyms = top_down(trash_category_table[self.lang])
+		hyponyms_set = set(hyponyms)
+		while hyponyms:
+			h = hyponyms.pop(0)
+			hyponyms_set.add(h)
+			hyponyms += top_down(h)
