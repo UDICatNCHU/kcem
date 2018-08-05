@@ -14,7 +14,7 @@ from kcem.utils.fullwidth2halfwidth import f2h
 import gensim, json, logging, math, pickle, os, psutil, subprocess, time, pymysql
 import multiprocessing as mp
 from ngram import NGram
-from django.db.utils import ProgrammingError, OperationalError
+from django.db.utils import OperationalError
 
 openCC = OpenCC('s2t')
 logging.basicConfig(format='%(levelname)s : %(asctime)s : %(message)s', filename='buildKCEM.log', level=logging.INFO)
@@ -37,8 +37,6 @@ class KCEM(object):
 		if ngram:
 			try:
 				self.kcemNgram = pickle.load(open('kcem_ngram.{}.pkl'.format(self.lang), 'rb'))
-			except ProgrammingError as e:
-				print(str(e)+', if this happened in building steps, then ignore it!')
 			except FileNotFoundError as e:
 				print(str(e)+', if this happened in building steps, then ignore it!')
 
