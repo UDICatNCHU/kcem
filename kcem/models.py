@@ -99,3 +99,14 @@ class Redirect(models.Model):
 
     def __str__(self):
         return '{}-{}'.format(str(self.rd_from), self.rd_title)
+
+class PageProps(models.Model):
+    pp_page = models.IntegerField(primary_key=True)
+    pp_propname = models.CharField(max_length=60)
+    pp_value = models.TextField()
+    pp_sortkey = models.FloatField(blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = 'page_props'
+        unique_together = (('pp_propname', 'pp_sortkey', 'pp_page'), ('pp_page', 'pp_propname'), ('pp_propname', 'pp_page'),)
